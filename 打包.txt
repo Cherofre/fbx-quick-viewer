@@ -1,0 +1,2 @@
+npm start	测试运行	
+npm run dist	打包

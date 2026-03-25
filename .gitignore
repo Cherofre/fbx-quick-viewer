@@ -1,0 +1,9 @@
+node_modules/
+dist/
+FBX_Data/
+fbx_cache/
+*.log
+*.tmp
+*.temp
+Thumbs.db
+.DS_Store

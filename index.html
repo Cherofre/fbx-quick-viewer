@@ -1,0 +1,3033 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>FBX 快速预览器</title>
+    <style>
+
+        /* --- 新增：网格切换样式 --- */
+        .grid-selector {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+        }
+        .grid-selector select {
+            width: 100%;
+            background: #2a2a2a;
+            color: #ddd;
+            border: 1px solid #555;
+            padding: 4px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .grid-info {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+            text-align: right;
+        }
+        /* --- 新增：UV 工具箱样式 (仿 3ds Max) --- */
+        .uv-group {
+            background: #2a2a2a;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            border: 1px solid #333;
+        }
+        .uv-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .uv-row label {
+            font-size: 11px;
+            color: #aaa;
+            width: 40px;
+        }
+        .uv-inputs {
+            display: flex;
+            gap: 5px;
+            flex: 1;
+        }
+        .input-wrap {
+            display: flex;
+            align-items: center;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 2px;
+            flex: 1;
+            padding: 0 4px;
+        }
+        .input-wrap span {
+            color: #00aaff; /* Max 风格的蓝色高亮 */
+            font-size: 11px;
+            font-weight: bold;
+            margin-right: 4px;
+            cursor: ew-resize; /* 提示可以拖动（虽然还是输入框） */
+        }
+        .input-wrap input {
+            background: transparent;
+            border: none;
+            color: white;
+            width: 100%;
+            font-size: 11px;
+            padding: 2px 0;
+            outline: none;
+            text-align: right;
+        }
+        /* 隐藏数字输入框的上下箭头 */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+        -webkit-appearance: none; 
+        margin: 0; 
+        }
+        .uv-checkbox-row {
+            display: flex;
+            gap: 15px;
+            font-size: 11px;
+            color: #ccc;
+            margin-top: 5px;
+            align-items: center;
+        }
+        .uv-checkbox-row input[type="checkbox"] {
+            accent-color: #00aaff;
+        }
+
+        /* --- 通用右键菜单样式 --- */
+        .ctx-menu {
+            display: none;
+            position: absolute; 
+            z-index: 9999;
+            background: #252526; 
+            border: 1px solid #454545;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+            padding: 5px 0; 
+            color: #fff; 
+            font-size: 13px;
+            min-width: 160px;
+        }
+
+        
+        /* 🟢 关键修改 1：只让有“点击功能”的 div 才有内边距和悬停色 */
+        /* 我们排除掉容器 div (#ctx-grid-only) 和分割线 div (.menu-separator) */
+        .ctx-menu div:not(#ctx-grid-only):not(.menu-separator) { 
+            padding: 8px 15px; 
+            cursor: pointer; 
+            display: flex; 
+            justify-content: space-between; 
+            transition: background 0.1s;
+        }
+        /* 悬停变蓝 */
+        .ctx-menu div:not(#ctx-grid-only):not(.menu-separator):hover { 
+            background: #094771; 
+        }
+        .ctx-menu span.shortcut { color: #888; font-size: 11px; }
+        /* 🟢 关键修改 2：彻底重写分割线样式 */
+        .menu-separator {
+            height: 1px;
+            background-color: rgba(255, 255, 255, 0.15); /* 稍微亮一点 */
+            margin: 5px 0; /* 上下留白 */
+            padding: 0 !important; /* ⚠️ 强制去掉内边距，变回细线 */
+            width: 100%;
+            pointer-events: none; /* 让鼠标无法点中分割线 */
+        }
+
+        /* --- Max 风格输入框样式 (新增) --- */
+        .max-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+            font-size: 11px;
+            color: #ccc;
+        }
+        .max-input-group {
+            display: flex;
+            gap: 4px;
+            flex: 1;
+            margin-left: 5px;
+        }
+        .max-field {
+            display: flex;
+            align-items: center;
+            background: #1e1e1e;
+            border: 1px solid #444;
+            border-radius: 2px;
+            flex: 1;
+            padding: 0 2px;
+        }
+        .max-field span {
+            color: #00aaff; /* Max 蓝 */
+            font-weight: bold;
+            margin-right: 3px;
+            font-size: 10px;
+            cursor: ew-resize; /* 🟢 关键：鼠标悬停显示左右拖动箭头 */
+            user-select: none; /* 禁止选中文本 */
+            width: 12px;       /* 增加一点点击区域 */
+            text-align: center;
+        }
+        /* 拖动时给 body 加个样式，防止鼠标移出区域后图标变回箭头 */
+        body.is-dragging {
+            cursor: ew-resize !important;
+        }
+        .max-field input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 11px;
+            text-align: right;
+            outline: none;
+            padding: 2px 0;
+        }
+        /* 去掉数字输入框的箭头 */
+        .max-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        /* 网格下拉框样式 */
+        .grid-select-box {
+            width: 100%;
+            background: #252526;
+            color: #ddd;
+            border: 1px solid #444;
+            padding: 4px;
+            margin-bottom: 2px;
+            font-size: 11px;
+            border-radius: 2px;
+            outline: none;
+        }
+        .grid-info-text {
+            font-size: 10px;
+            color: #888;
+            text-align: right;
+            margin-bottom: 8px;
+            font-family: monospace;
+        }
+
+        /* --- 新增：给图标加个固定宽度的笼子，解决对齐问题 --- */
+        .ctx-menu .icon {
+            display: inline-block;
+            width: 20px;       /* 强制图标宽度一致 */
+            text-align: center;
+            margin-right: 5px;
+        }
+
+        /* 🟢 关键修改 3：容器本身完全透明，不参与交互 */
+        #ctx-grid-only { 
+            display: block; 
+            padding: 0 !important;
+            margin: 0 !important;
+            background: transparent !important;
+        }
+
+        /* 补全历史记录下拉菜单样式 */
+        #history-dropdown { 
+            position: absolute; top: 45px; right: 10px; width: 240px; 
+            background: #252526; border: 1px solid #454545; z-index: 1000; 
+            display: none; max-height: 300px; overflow-y: auto; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); 
+        }
+        #history-dropdown.show { display: block; }
+        .history-item { 
+            padding: 8px 10px; font-size: 12px; color: #ccc; 
+            border-bottom: 1px solid #333; cursor: pointer; 
+            display: flex; align-items: center; 
+        }
+        .history-item:hover { background-color: #0e639c; color: white; }
+        .history-path { 
+            flex: 1; overflow: hidden; text-overflow: ellipsis; 
+            white-space: nowrap; direction: rtl; text-align: left; margin-left:5px;
+        }
+
+        body { margin: 0; overflow: hidden; background-color: #333; font-family: 'Segoe UI', sans-serif; display: flex; user-select: none; }
+        
+        ::-webkit-scrollbar { width: 10px; height: 10px; background-color: #252526; }
+        ::-webkit-scrollbar-thumb { background-color: #424242; border-radius: 4px; border: 1px solid #252526; }
+        ::-webkit-scrollbar-thumb:hover { background-color: #5a5a5a; }
+        ::-webkit-scrollbar-corner { background-color: #252526; }
+
+        /* --- 侧边栏 --- */
+        #sidebar {
+            /* 🟢 修改：宽度增加到 312px (约提升20%) */
+            width: 312px; 
+            height: 100vh; background: #252526; border-right: 1px solid #333;
+            /* 👇 把这里的 z-index: 20 改为 60 (要比 scene-hud 的 50 大) 👇 */
+            display: flex; flex-direction: column; color: #ccc; z-index: 60; flex-shrink: 0; 
+            position: relative; 
+            transition: width 0.15s cubic-bezier(0.25, 0.8, 0.25, 1); 
+            overflow: hidden; will-change: width;
+            min-width: 0; 
+        }
+         #sidebar-inner-wrapper {
+            /* 🟢 修改：内部最小宽度也改为 312px */
+            min-width: 312px; 
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #sidebar.collapsed { width: 0 !important; border-right: none; }
+
+        /* --- 侧边栏拖拽手柄 --- */
+        #sidebar-resizer {
+            position: absolute; top: 0; right: 0; width: 5px; height: 100%;
+            cursor: col-resize; z-index: 999; background: transparent; transition: background 0.2s;
+        }
+        #sidebar-resizer:hover, #sidebar.resizing #sidebar-resizer { background: #007acc; }
+        #sidebar.resizing { transition: none !important; border-right: 1px solid #007acc; }
+
+        #sidebar-header { padding: 15px; background: #2d2d2d; font-weight: bold; font-size: 14px; border-bottom: 1px solid #3e3e42; white-space: nowrap; }
+        .header-top-row { display: flex; justify-content: space-between; align-items: center; }
+        #refresh-dir-btn { background: transparent; border: none; color: #888; cursor: pointer; font-size: 16px; padding: 0 4px; line-height: 1; transition: color 0.2s; outline: none; }
+        #refresh-dir-btn:hover { color: #fff; transform: rotate(180deg); transition: all 0.4s; }
+        
+        /* --- 排序工具栏样式 --- */
+        #sort-bar { padding: 8px 15px; background: #252526; border-bottom: 1px solid #3e3e42; display: flex; gap: 5px; align-items: center; }
+        .sort-select { flex: 1; background: #3c3c3c; color: #ccc; border: 1px solid #555; padding: 2px 4px; border-radius: 3px; font-size: 11px; outline: none; }
+        .sort-btn { background: #3c3c3c; color: #ccc; border: 1px solid #555; width: 24px; height: 22px; padding: 0; cursor: pointer; font-size: 12px; border-radius: 3px; display: flex; align-items: center; justify-content: center; }
+        .sort-btn:hover { background: #505050; }
+        .sort-btn.active { background-color: #0e639c; border-color: #007acc; color: white; }
+
+        /* --- 按钮区域样式 --- */
+        #web-upload-section { padding: 10px 15px; border-bottom: 1px solid #3e3e42; background: #2d2d2d; display: none; }
+        #web-upload-btn { width: 100%; padding: 8px; background: #28a745; color: white; border: none; cursor: pointer; font-size: 12px; border-radius: 2px; font-weight: bold; }
+        #web-upload-btn:hover { background: #218838; }
+
+        #file-list, #file-grid { flex: 1; overflow-y: auto; padding: 10px 0; outline: none; min-height: 0; }
+        #file-grid { padding: 10px; display: none; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; align-content: start; }
+
+        .file-item { padding: 8px 15px; cursor: pointer; font-size: 13px; white-space: normal; word-break: break-all; line-height: 1.4; border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.2s; }
+        .file-item:hover { background-color: #383838; }
+        .file-item.active { background-color: #37373d; color: white; border-left: 3px solid #007acc; }
+
+        /* 网格模式样式 */
+        .grid-item { 
+            background: #333; 
+            border: 1px solid #444; 
+            overflow: hidden; 
+            cursor: pointer; 
+            display: flex; 
+            flex-direction: column; 
+            height: 140px; 
+            position: relative; /* 🟢 关键：它是子元素定位的基准 */
+            border-radius: 4px; 
+            transition: transform 0.1s; }
+        .grid-item:hover { background: #3e3e3e; transform: translateY(-2px); border-color: #666; }
+        .grid-item.active { border: 2px solid #007acc; background: #2d2d2d; }
+        .thumb-img { 
+            width: 100%; 
+            flex: 1; 
+            object-fit: contain; 
+            
+            /* 🟢 关键：改成透明，这样就和卡片底色融为一体了 */
+            background: transparent; 
+            
+            padding: 0;  
+            box-sizing: border-box; 
+            /* 稍微加一点过渡，让图片加载出来时更柔和 */
+            transition: opacity 0.3s;
+        }
+        /* 2. 把底部文字背景改成真正的“透明渐变” */
+        .thumb-name { 
+            position: absolute; 
+            bottom: 0; 
+            left: 0; 
+            width: 100%;
+            
+            /* 上方留出 25px 给渐变过渡，下方留 6px 给文字 */
+            padding: 25px 4px 6px 4px; 
+            
+            font-size: 11px; 
+            text-align: center; 
+            color: #fff; 
+            
+            /* 🟢 关键：底部黑(0.85) -> 顶部完全透明(0) */
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0) 100%);
+            
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+            
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            z-index: 10;
+            pointer-events: none; 
+            box-sizing: border-box;
+        }
+        
+        #selected-path-section { padding: 10px; background: #252526; border-top: 1px solid #3e3e42; display: none; }
+        #selected-path-input { flex: 1; background: #3c3c3c; border: 1px solid #555; color: #999; border-radius: 3px; padding: 4px 6px; font-size: 11px; outline: none; width: calc(100% - 70px); }
+        .icon-btn { width: 26px; padding: 0; margin-left: 5px; background: #3c3c3c; border: 1px solid #555; color: #fff; cursor: pointer; border-radius: 3px; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; height: 24px; }
+        .icon-btn:hover { background: #505050; }
+        #search-container { padding: 10px; border-top: 1px solid #3e3e42; background: #252526; }
+        #search-input { width: 100%; padding: 6px; background: #3c3c3c; border: 1px solid #555; color: white; border-radius: 3px; box-sizing: border-box; }
+
+        /* --- 主画布 --- */
+        #canvas-container { flex: 1; height: 100vh; background: #404040; position: relative; overflow: hidden; }
+        #canvas-container.drag-over { border: 4px dashed #007acc; box-sizing: border-box; } 
+        #sidebar-toggle-btn { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 16px; height: 60px; background: #333; border: 1px solid #444; border-left: none; border-radius: 0 8px 8px 0; cursor: pointer; z-index: 25; color: #aaa; display: flex; align-items: center; justify-content: center; font-size: 10px; user-select: none; transition: background 0.2s; }
+        #sidebar-toggle-btn:hover { background: #444; color: white; }
+
+        /* ViewCube (左上角) */
+        #viewcube-container { position: absolute; top: 20px; left: 20px; width: 70px; height: 70px; z-index: 50; }
+        #viewcube-canvas { width: 100%; height: 100%; outline: none; cursor: pointer; }
+
+        /* 右侧面板 (顶到头) */
+        #right-panel-container { position: absolute; top: 20px; right: 20px; bottom: 20px; z-index: 30; display: flex; align-items: flex-start; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); pointer-events: none; }
+        #right-panel-container.collapsed { transform: translateX(290px); }
+        
+        #controls-toggle-btn { width: 20px; height: 40px; background: rgba(50,50,50,0.95); border: 1px solid #555; border-right: none; border-radius: 8px 0 0 8px; cursor: pointer; color: #aaa; display: flex; align-items: center; justify-content: center; font-size: 10px; user-select: none; margin-top: 10px; pointer-events: auto; backdrop-filter: blur(4px); box-shadow: -2px 2px 5px rgba(0,0,0,0.2); }
+        #controls-toggle-btn:hover { background: #666; color: white; }
+        
+        #controls { width: 250px; background: rgba(50,50,50,0.95); border: 1px solid #555; border-radius: 8px; padding: 15px; backdrop-filter: blur(4px); max-height: 100%; overflow-y: auto; pointer-events: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.5); display: flex; flex-direction: column; margin-top: 0; }
+        
+        #controls button { width: 100%; margin-bottom: 5px; padding: 6px; background: #3c3c3c; color: white; border: 1px solid #555; cursor: pointer; font-size: 12px; border-radius: 2px; transition: all 0.2s; }
+        #controls button:hover { background: #505050; }
+        #controls button.active-btn { background-color: #0e639c; border-color: #007acc; font-weight: bold; box-shadow: 0 0 5px rgba(0, 122, 204, 0.5); }
+        button.action-btn { background: #444 !important; border: 1px solid #555 !important; }
+        button.action-btn:hover { background: #555 !important; }
+        
+        .compact-select { background: #222; color: #aaa; border: 1px solid #444; font-size: 11px; padding: 4px; border-radius: 3px; width: 100%; outline: none; margin-bottom: 5px; }
+        .compact-select:hover { color: #fff; border-color: #666; }
+
+        .group-title { margin-bottom: 6px; margin-top: 12px; font-weight: bold; font-size: 12px; color: #4fc1ff; border-bottom: 1px solid #555; padding-bottom: 2px; }
+        .group-title:first-child { margin-top: 0; }
+
+        /* UV 区域 */
+        #uv-control-panel { display: none; margin-top: 5px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; border: 1px dashed #555; margin-bottom: 10px;}
+        .uv-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; font-size: 11px; color: #ccc; }
+        input[type="range"] { width: 100%; cursor: pointer; margin: 5px 0; }
+        
+        #uv-layout-container { width: 100%; height: 250px; background: #222; border: 1px solid #555; display: none; position: relative; margin-top: 5px; box-sizing: border-box; }
+        
+        #uv-canvas-wrapper { width: 100%; height: 100%; background-image: linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px); background-size: 20px 20px; position: relative; }
+        #uv-canvas-2d { display: block; width: 100%; height: 100%; } 
+        #uv-helper-text { position: absolute; bottom: 5px; right: 5px; font-size: 10px; color: #666; pointer-events: none; background: rgba(0,0,0,0.6); padding: 2px 4px; border-radius: 2px;}
+
+        /* HUD */
+        #loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); color: white; display: none; align-items: center; justify-content: center; z-index: 100; }
+
+        #scene-hud {
+            position: absolute;
+            bottom: 10px;
+            left: 10px; /* 如果左侧文件列表遮挡，可改为 280px */
+            z-index: 50;
+            background: rgba(30, 30, 30, 0.85);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            color: #ccc;
+            font-size: 12px;
+            backdrop-filter: blur(4px);
+            min-width: 160px;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+        }
+        .hud-select {
+            width: 100%;
+            background: #222;
+            color: #ddd;
+            border: 1px solid #555;
+            margin-top: 4px;
+            margin-bottom: 2px;
+            padding: 2px;
+            font-size: 11px;
+        }
+        .hud-row {
+            display: flex; 
+            justify-content: space-between; 
+            margin-top: 4px; 
+            border-top: 1px solid #444; 
+            padding-top: 4px;
+        }
+        .hud-row span { color: #4fc1ff; font-weight: bold; font-family: monospace; }
+
+        #model-stats span { color: #4fc1ff; font-weight: bold; }
+        #drag-hint { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.8); font-size: 20px; font-weight: bold; pointer-events: none; display: none; text-shadow: 0 0 10px rgba(0,0,0,0.8); z-index: 40;}
+        #progress-info { color:#4fc1ff; font-size:11px; margin-left:5px; font-weight:normal; }
+
+         /* --- 🟢 新增：收藏功能样式 --- */
+        /* 列表模式下的星星 */
+        .file-item {
+            display: flex;             /* 变成弹性布局 */
+            justify-content: space-between; /*以此让星星靠右 */
+            align-items: center;
+        }
+        .file-name-span {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .fav-icon {
+            cursor: pointer;
+            font-size: 16px;
+            color: #555; /* 未收藏颜色 */
+            padding: 0 5px;
+            transition: color 0.2s, transform 0.2s;
+            z-index: 10;
+        }
+        .fav-icon:hover {
+            transform: scale(1.2);
+            color: #888;
+        }
+        .fav-icon.active {
+            color: #ffcc00; /* 已收藏：金黄色 */
+            text-shadow: 0 0 5px rgba(255, 204, 0, 0.4);
+        }
+        /* 缩略图模式下的星星 - 优化版 */
+        .grid-fav-icon {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 15px;
+            z-index: 20;
+            transition: all 0.2s;
+            
+            /* 🟢 默认状态：无背景，半透明白色，加阴影防止和白色背景混淆 */
+            background: transparent;
+            color: rgba(255, 255, 255, 0.4); 
+            text-shadow: 0 1px 3px rgba(0,0,0,0.9); /* 关键：给星星加个黑边，保证在白底上也能看见 */
+        }
+        /* 鼠标悬停：显示淡淡的黑底，星星变白 */
+        .grid-fav-icon:hover {
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            transform: scale(1.1);
+        }
+        /* 已收藏状态：金黄色，背景稍微给一点点暗色衬托即可 */
+        .grid-fav-icon.active {
+            color: #ffcc00;
+            background: rgba(0, 0, 0, 0.3); /* 0.3 的透明度，比之前的 0.6 浅很多 */
+            text-shadow: 0 0 5px rgba(255, 204, 0, 0.5); /* 金色发光 */
+        }
+        
+        /* 鼠标悬停在已收藏的星星上 */
+        .grid-fav-icon.active:hover {
+            background: rgba(0, 0, 0, 0.6);
+        }
+        /* 筛选按钮激活状态 */
+        .sort-btn.active-filter {
+            background-color: #ffcc00 !important;
+            color: #000 !important;
+            border-color: #e6b800 !important;
+            font-weight: bold;
+        }
+
+    </style>
+
+<script src="libs/three.min.js"></script>
+<script src="libs/OrbitControls.js"></script>
+<script src="libs/fflate.min.js"></script>
+<script src="libs/FBXLoader.js"></script>
+<script src="libs/DDSLoader.js"></script>
+<script src="libs/TGALoader.js"></script>
+<script src="libs/VertexNormalsHelper.js"></script>
+<script src="libs/tween.min.js"></script>
+
+</head>
+<body>
+
+    <!-- 修复后的文件菜单：加上了 class="ctx-menu" -->
+        <div id="ctx-menu" class="ctx-menu">
+        <!-- 通用功能 -->
+        <div onclick="openItemInExplorer()">
+            <span><span class="icon">📂</span>打开所在文件夹</span>
+        </div>
+        <div onclick="copyItemPath()">
+            <span><span class="icon">📋</span>复制文件路径</span>
+        </div>
+        
+        <!-- 网格模式专属功能 -->
+        <div id="ctx-grid-only">
+            <div class="menu-separator"></div> 
+            <div onclick="smartFixThumbnails()">
+            <span><span class="icon">🧹</span>智能修复异常缩略图</span>
+            </div>
+            <div onclick="manualSnapshot()">
+                <span><span class="icon">📷</span>以当前视角截图</span>
+            </div>
+            <div onclick="forceRegenerate()">
+                <span><span class="icon">↻</span>重新生成缩略图</span>
+            </div>
+        </div>
+    </div>
+
+        <div id="bg-ctx-menu" class="ctx-menu">
+        <div onclick="smartFixThumbnails()">
+            <span><span class="icon">🧹</span>智能修复异常缩略图</span>
+        </div>
+        <div onclick="regenerateAllThumbnails()">
+            <span><span class="icon">↻</span>强制重新生成所有</span>
+        </div>
+        <div class="menu-separator"></div>
+        <div onclick="openItemInExplorer()">
+            <span><span class="icon">📂</span>打开当前文件夹</span>
+        </div>
+    </div>
+    
+    <!-- 3D 视口右键菜单 -->
+    <div id="canvas-ctx-menu" class="ctx-menu">
+        <div onclick="fitCamera()">🔍聚焦模型 <span class="shortcut">Z</span></div>
+        <div onclick="resetCamera()">🔄复位相机 <span class="shortcut"></span></div>
+        <div class="menu-separator"></div>
+        <div onclick="toggleGrid()">📏切换地面网格 <span class="shortcut">G</span></div>
+        <div onclick="toggleBgColor()">🌗切换背景深浅 <span class="shortcut"></span></div>
+    </div>
+
+    <div id="sidebar">
+        <div id="sidebar-resizer" title="左右拖动调整宽度"></div>
+        <div id="sidebar-inner-wrapper"> <!-- 🟢 包裹容器 -->
+            <div id="sidebar-header">
+                <div class="header-top-row">
+                    <span>当前目录: <span id="dir-name">未选择</span></span>
+                    <div class="header-actions" style="display:flex; gap:5px;">
+                        <button id="history-btn" class="icon-btn-ghost" onclick="toggleHistory()" title="最近历史记录" style="background:transparent;border:none;color:#888;cursor:pointer;">🕒</button>
+                        <button id="refresh-dir-btn" onclick="refreshCurrentDirectory()" title="重新索引当前目录" style="background:transparent;border:none;color:#888;cursor:pointer;">↻</button>
+                    </div>
+                </div>
+                <div style="font-size:11px; color:#888; margin-top:4px;">
+                    发现 <span id="file-count">0</span> 个 FBX 文件
+                    <span id="progress-info"></span>
+                </div>
+                <div id="history-dropdown"></div>
+            </div>
+            
+            <div id="web-upload-section">
+                <input type="file" id="folder-input" webkitdirectory directory multiple style="display:none">
+                <button id="web-upload-btn" onclick="handleOpenFolder()">打开文件夹</button>
+            </div>
+
+            <div id="sort-bar">
+                <select id="sort-type" class="sort-select" onchange="updateSort()">
+                    <option value="name">按名称排序</option>
+                    <option value="date" selected>按修改时间</option>
+                </select>
+                <button id="sort-order" class="sort-btn" onclick="toggleSortOrder()" title="切换升序/降序">⬇</button>
+                <!-- 🟢 新增：仅显示收藏按钮 -->
+                <button id="fav-filter-btn" class="sort-btn" onclick="toggleFavFilter()" style="margin-left: 5px;" title="仅显示收藏">★</button>
+                <button id="thumb-toggle-btn" class="sort-btn" onclick="toggleViewMode()" style="margin-left: 5px;" title="切换 列表/缩略图 模式">⊞</button>
+            </div>
+
+            <div id="file-list" tabindex="0">
+                <div style="padding:15px; color:#666; font-size:12px; text-align: center;">请选择文件夹加载模型</div>
+            </div>
+            <div id="file-grid" tabindex="0"></div>
+
+            <div id="selected-path-section">
+                <div style="font-size: 11px; color: #888; margin-bottom: 4px;">选中模型路径:</div>
+                <div style="display: flex;">
+                    <input type="text" id="selected-path-input" readonly placeholder="未选择文件">
+                    <button class="icon-btn" id="copy-path-btn" onclick="copyPath()" title="复制完整路径">❐</button>
+                    <button class="icon-btn" id="open-folder-btn" onclick="revealInExplorer()" title="打开所在文件夹">📂</button>
+                </div>
+            </div>
+
+            <div id="search-container">
+                <input type="text" id="search-input" placeholder="搜索文件..." oninput="filterFiles(this.value)">
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <!-- ViewCube 独立 Canvas -->
+        <div id="viewcube-container">
+            <canvas id="viewcube-canvas"></canvas>
+        </div>
+
+        <div id="drag-hint">释放鼠标以加载贴图</div>
+        <div id="sidebar-toggle-btn" onclick="toggleSidebar()" title="折叠/展开侧边栏">◀</div>
+        <div id="loading-overlay">加载中...</div>
+        
+        <div id="right-panel-container">
+            <div id="controls-toggle-btn" onclick="toggleControls()" title="折叠/展开功能区">▶</div>
+            <div id="controls">
+                
+                <select id="nav-mode" class="compact-select" onchange="updateNavigationMode()">
+                    <option value="default">默认操作: 左键旋转 / 右键平移</option>
+                    <option value="max">3dsMax: 中键平移 / Alt+中键旋转</option>
+                </select>
+
+                <div class="group-title">基础显示模式</div>
+                
+                <!-- 标准材质 (重置一切) -->
+                <button id="btn-std" onclick="setBaseMaterial('standard')" class="active-btn">标准材质 (Standard)</button>
+                
+                <!-- 线框按钮：F4 和 F3 并排 -->
+                <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+                    <!-- 左边：F4 (实体+线框) -->
+                    <button id="btn-edged" onclick="toggleF4Mode()" style="flex:1;">实体线框 (F4)</button>
+                    <!-- 右边：F3 (纯线框) -->
+                    <button id="btn-wire" onclick="toggleF3Mode()" style="flex:1;">纯线框 (F3)</button>
+                </div>
+                
+                <!-- 并排布局：顶点颜色 & 顶点透明 -->
+                <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+                    <button id="btn-vcolor" onclick="setBaseMaterial('vertexColor')" style="flex:1;">顶点颜色 (Color)</button>
+                    <button id="btn-valpha" onclick="setBaseMaterial('vertexAlpha')" style="flex:1;">顶点透明 (Alpha)</button>
+                </div>
+
+                <!-- 几何体工具：标题栏里放“位置”小按钮 -->
+                <div class="group-title" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>几何体工具</span>
+                    <!-- 默认状态：原始坐标 (没有 active-btn 类) -->
+                    <button id="btn-origin" onclick="toggleOriginMode()" 
+                            style="width: auto; padding: 2px 8px; font-size: 10px; height: 20px; margin:0; line-height:1;">
+                        📍 原始坐标
+                    </button>
+                </div>
+                
+                <button id="btn-normals" onclick="toggleNormals()">显示法线 (Normals)</button>
+                <button id="btn-side" onclick="toggleDoubleSided()" class="active-btn">双面显示: 开</button>
+
+                <div class="group-title">相机与操作</div>
+                <div style="display:flex; gap:5px;">
+                    <button onclick="fitCamera()" class="action-btn" style="flex:1">聚焦 (Z)</button>
+                    <button onclick="resetCamera()" class="action-btn" style="flex:1">复位 (Space)</button>
+                </div>
+                
+                <div style="margin-top: 6px; font-size: 9px; color: #999; text-align: center;">
+                    T顶 F前 L左 R右 P透视
+                </div>
+
+                <!-- UV 工具箱 -->
+                <div class="group-title">UV 工具箱</div>
+                <div style="display:flex; gap:5px;">
+                    <button id="btn-uv" onclick="setBaseMaterial('uv')" style="flex:1;">启用贴图预览</button>
+                    <button id="btn-uv-layout" onclick="toggleUVWindow()" style="flex:1;">显示 UV 展开图</button>
+                </div>
+
+                <!-- UV 控制面板 -->
+                <div id="uv-control-panel">
+                    <div style="font-size:10px; color:#666; margin-bottom:6px; text-align:center; border-bottom:1px solid #444; padding-bottom:4px;">
+                        拖入图片替换贴图
+                    </div>
+                    <!-- 平铺 (Tiling) -->
+                    <div class="max-row">
+                        <span>平铺</span>
+                        <div class="max-input-group">
+                            <div class="max-field" title="按住拖动调整 U">
+                                <!-- 🟢 加上了 id="lbl-tileU" -->
+                                <span id="lbl-tileU">U</span>
+                                <input type="number" id="tileU" value="1.0" step="0.1" oninput="updateUVMax()">
+                            </div>
+                            <div class="max-field" title="按住拖动调整 V">
+                                <!-- 🟢 加上了 id="lbl-tileV" -->
+                                <span id="lbl-tileV">V</span>
+                                <input type="number" id="tileV" value="1.0" step="0.1" oninput="updateUVMax()">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 🟢 循环模式 Checkbox (移到平铺下面) -->
+                    <div class="max-row" style="justify-content: flex-end; gap: 10px; margin-bottom: 8px;">
+                        <label title="开启 U 方向循环" style="font-size:10px;"><input type="checkbox" id="wrapU" checked onchange="updateUVWrap()"> U 循环</label>
+                        <label title="开启 V 方向循环" style="font-size:10px;"><input type="checkbox" id="wrapV" checked onchange="updateUVWrap()"> V 循环</label>
+                    </div>
+
+                    <!-- 偏移 (Offset) -->
+                    <div class="max-row">
+                        <span>偏移</span>
+                        <div class="max-input-group">
+                            <div class="max-field" title="按住拖动调整 U">
+                                <!-- 🟢 加上了 id="lbl-offU" -->
+                                <span id="lbl-offU">U</span>
+                                <input type="number" id="offU" value="0.0" step="0.1" oninput="updateUVMax()">
+                            </div>
+                            <div class="max-field" title="按住拖动调整 V">
+                                <!-- 🟢 加上了 id="lbl-offV" -->
+                                <span id="lbl-offV">V</span>
+                                <input type="number" id="offV" value="0.0" step="0.1" oninput="updateUVMax()">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 流动动画 (新版：U/V 分离，数值放大100倍) -->
+                    <div class="max-row" style="margin-top: 8px; border-top: 1px dashed #444; padding-top: 5px;">
+                        <span>流动</span>
+                        <div class="max-input-group">
+                            <div class="max-field" title="按住拖动调整 U 流速">
+                                <!-- 🟢 加上 id="lbl-flowU" 用于拖动 -->
+                                <span id="lbl-flowU">U</span>
+                                <!-- 初始值 0.0，代表静止 -->
+                                <input type="number" id="flowU_val" value="0.0" step="0.1">
+                            </div>
+                            <div class="max-field" title="按住拖动调整 V 流速">
+                                <!-- 🟢 加上 id="lbl-flowV" 用于拖动 -->
+                                <span id="lbl-flowV">V</span>
+                                <input type="number" id="flowV_val" value="0.0" step="0.1">
+                            </div>
+                        </div>
+                    </div>
+                    <button style="margin-top:8px; width:100%; padding:4px; background:#333; border:1px solid #555; color:#ccc; font-size:10px; cursor:pointer;" onclick="resetUVMax()">
+                        重置 UV 参数 (Reset)
+                    </button>
+                </div> <!-- UV面板结束 -->
+
+                <!-- 👇👇👇 必须补全这一块，否则 JS 会直接崩溃 👇👇👇 -->
+                <div id="uv-layout-container">
+                    <div id="uv-canvas-wrapper">
+                        <canvas id="uv-canvas-2d"></canvas>
+                        <div id="uv-helper-text">UV 布局预览</div>
+                    </div>
+                </div>
+                <!-- 👆👆👆 补全结束 👆👆👆 -->
+
+            </div>
+
+        </div> <!-- right-panel-container 结束 -->
+
+        <!-- ✅ 场景信息面板 (Scene HUD) - 放在 canvas-container 内部，但独立于 sidebar 和 controls -->
+        <div id="scene-hud">
+            <!-- 1. 网格控制 -->
+            <div style="font-weight:bold; color:#aaa; font-size:11px;">地面网格 (Grid)</div>
+            <select id="grid-size-select" class="hud-select" onchange="changeGridSystem()">
+                <option value="small">小 (5m × 5m)</option>
+                <option value="medium" selected>中 (50m × 50m)</option>
+                <option value="large">大 (500m × 500m)</option>
+            </select>
+            <div id="grid-info-display" style="text-align:right; color:#ccc; font-size:11px; font-family:monospace;margin-top: 3px;">
+                50m (1m/格)
+            </div>
+
+            <!-- 2. 统计信息 -->
+            <div class="hud-row" style="margin-top:8px;">
+                <div>顶点数:</div>
+                <span id="stat-verts">0</span>
+            </div>
+            <div class="hud-row">
+                <div>三角面:</div>
+                <span id="stat-tris">0</span>
+            </div>
+        </div>
+
+    </div>
+
+                
+
+                
+
+    <script>
+        
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            if (!container || !camera || !renderer) return;
+
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            if (w <= 0 || h <= 0) return;
+
+            // 防止旧的 view offset 残留
+            camera.clearViewOffset();
+
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+
+            renderer.setSize(w, h);
+
+            renderFrame();
+        }
+
+
+        // --- 独立的 ViewCube 类 ---
+        class ViewCube {
+            constructor(mainCamera, mainControls) {
+                this.mainCamera = mainCamera;
+                this.mainControls = mainControls;
+                
+                this.domElement = document.getElementById('viewcube-canvas');
+                this.renderer = new THREE.WebGLRenderer({ 
+                    canvas: this.domElement, 
+                    alpha: true, 
+                    antialias: true 
+                });
+                
+                this.renderer.setSize(70, 70);
+                this.renderer.setPixelRatio(window.devicePixelRatio);
+
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+                this.camera.position.z = 2.5;
+
+                this.raycaster = new THREE.Raycaster();
+                this.colors = { base: 0x444444, hover: 0x666666, text: '#ffffff' };
+
+                this.initCube();
+                this.bindEvents();
+                this.render();
+            }
+
+            initCube() {
+                const geometry = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+                const labels = ['右', '左', '上', '下', '前', '后'];
+                const materials = labels.map(label => this.createTexture(label, this.colors.base));
+                
+                this.mesh = new THREE.Mesh(geometry, materials);
+                this.scene.add(this.mesh);
+                this.defaultMaterials = materials;
+                
+                const amb = new THREE.AmbientLight(0xffffff, 1);
+                this.scene.add(amb);
+            }
+
+            createTexture(text, colorHex) {
+                const size = 256;
+                const canvas = document.createElement('canvas');
+                canvas.width = size; canvas.height = size;
+                const ctx = canvas.getContext('2d');
+
+                const c = new THREE.Color(colorHex);
+                ctx.fillStyle = `rgb(${Math.floor(c.r*255)},${Math.floor(c.g*255)},${Math.floor(c.b*255)})`;
+                ctx.fillRect(0, 0, size, size);
+                
+                ctx.lineWidth = 15; ctx.strokeStyle = '#888'; ctx.strokeRect(0, 0, size, size);
+
+                ctx.fillStyle = this.colors.text;
+                ctx.font = 'bold 100px "Microsoft YaHei", sans-serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.translate(size/2, size/2);
+                ctx.fillText(text, 0, 0);
+
+                return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas) });
+            }
+
+            update() {
+                const offset = new THREE.Vector3().copy(this.mainCamera.position).sub(this.mainControls.target);
+                offset.normalize();
+                this.camera.position.copy(offset).multiplyScalar(2.5);
+                this.camera.lookAt(0, 0, 0);
+                this.camera.up.copy(this.mainCamera.up);
+                this.render();
+            }
+
+            render() {
+                this.renderer.render(this.scene, this.camera);
+            }
+
+            bindEvents() {
+                const canvas = this.domElement;
+                canvas.addEventListener('mousemove', (e) => {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                    const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+                    
+                    this.raycaster.setFromCamera({x, y}, this.camera);
+                    const intersects = this.raycaster.intersectObject(this.mesh);
+
+                    if (intersects.length > 0) {
+                        canvas.style.cursor = 'pointer';
+                        const index = intersects[0].face.materialIndex;
+                        if (this.hoverIndex !== index) {
+                            if (this.hoverIndex !== undefined) this.mesh.material[this.hoverIndex] = this.defaultMaterials[this.hoverIndex];
+                            this.hoverIndex = index;
+                            const labels = ['右', '左', '上', '下', '前', '后'];
+                            this.mesh.material[index] = this.createTexture(labels[index], this.colors.hover);
+                        }
+                    } else {
+                        canvas.style.cursor = 'default';
+                        if (this.hoverIndex !== undefined) {
+                            this.mesh.material[this.hoverIndex] = this.defaultMaterials[this.hoverIndex];
+                            this.hoverIndex = undefined;
+                        }
+                    }
+                });
+
+                canvas.addEventListener('click', (e) => {
+                    if (this.hoverIndex !== undefined) this.handleClick(this.hoverIndex);
+                });
+            }
+
+            handleClick(faceIndex) {
+                const vec = new THREE.Vector3();
+                const up = new THREE.Vector3(0, 1, 0);
+                const distance = this.mainCamera.position.distanceTo(this.mainControls.target);
+                
+                switch(faceIndex) {
+                    case 0: vec.set(distance, 0, 0); break;
+                    case 1: vec.set(-distance, 0, 0); break;
+                    case 2: vec.set(0, distance, 0); up.set(0,0,-1); break;
+                    case 3: vec.set(0, -distance, 0); up.set(0,0,1); break;
+                    case 4: vec.set(0, 0, distance); break;
+                    case 5: vec.set(0, 0, -distance); break;
+                }
+
+                if (window.TWEEN) {
+                    const startPos = this.mainCamera.position.clone();
+                    const startUp = this.mainCamera.up.clone();
+                    const endPos = new THREE.Vector3().copy(this.mainControls.target).add(vec);
+
+                    new TWEEN.Tween({ t: 0 }).to({ t: 1 }, 500).easing(TWEEN.Easing.Cubic.Out)
+                        .onUpdate(({ t }) => {
+                            const p = new THREE.Vector3().copy(startPos).lerp(endPos, t);
+                            const dir = p.sub(this.mainControls.target).normalize().multiplyScalar(distance);
+                            this.mainCamera.position.copy(this.mainControls.target).add(dir);
+                            this.mainCamera.up.copy(startUp).lerp(up, t);
+                            this.mainCamera.lookAt(this.mainControls.target);
+                        }).start();
+                } else {
+                    this.mainCamera.position.copy(this.mainControls.target).add(vec);
+                    this.mainCamera.up.copy(up);
+                    this.mainCamera.lookAt(this.mainControls.target);
+                }
+            }
+        }
+
+        // --- UVViewer ---
+        class UVViewer {
+            constructor() {
+                try {
+                    this.canvas = document.getElementById('uv-canvas-2d');
+                    // 🔴 防护 1：如果找不到画布，不报错，而是默默停止
+                    if (!this.canvas) {
+                        console.warn("UV Canvas not found, UV preview disabled.");
+                        this.ctx = null;
+                        return;
+                    }
+                    this.ctx = this.canvas.getContext('2d');
+                    this.currentModel = null;
+                    this.needsUpdate = false; 
+                    
+                    // 🔴 防护 2：检查父元素是否存在，防止 ResizeObserver 崩溃
+                    if (this.canvas.parentElement) {
+                        this.resizeObserver = new ResizeObserver(() => {
+                            // 只有当元素可见时才绘制
+                            if(this.canvas.offsetParent !== null) this.draw();
+                        });
+                        this.resizeObserver.observe(this.canvas.parentElement);
+                    }
+                } catch (e) {
+                    console.error("UVViewer init failed:", e);
+                    this.ctx = null; // 确保标记为不可用
+                }
+            }
+            updateModel(model) {
+                // 🔴 防护 3：如果没有 ctx (说明初始化失败)，直接跳过，不要报错
+                if (!this.ctx) return;
+                try {
+                    this.currentModel = model; this.needsUpdate = true;
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height); 
+                } catch(e) { console.error(e); }
+            }
+            checkAndDraw() {
+                if (this.needsUpdate && this.currentModel) {
+                    requestAnimationFrame(() => { setTimeout(() => { this.draw(); this.needsUpdate = false; }, 20); });
+                }
+            }
+            draw() {
+                // 🔴 防护 4：绘制前再次检查环境
+                if (!this.ctx || !this.canvas.parentElement || !this.currentModel) return;
+                try {
+                    const wrapper = this.canvas.parentElement;
+                    const width = wrapper.clientWidth; const height = wrapper.clientHeight;
+                    // 防止宽高为 0 导致报错
+                    if (width === 0 || height === 0) return;
+                    const dpr = window.devicePixelRatio || 1;
+                    if (this.canvas.width === width * dpr && this.canvas.height === height * dpr && !this.needsUpdate) return; 
+                    this.canvas.width = width * dpr; this.canvas.height = height * dpr;
+                    this.ctx.scale(dpr, dpr);
+                    this.canvas.style.width = width + 'px'; this.canvas.style.height = height + 'px';
+                    this.ctx.clearRect(0, 0, width, height);
+                    this.ctx.font = "12px Arial"; this.ctx.fillStyle = "#888";
+                    this.ctx.fillText("正在生成 UV 预览...", 10, 20);
+                    setTimeout(() => { this._executeDraw(width, height); }, 0);
+                } catch (e) { console.error("UV draw failed:", e); }
+            }
+            _executeDraw(width, height) {
+                if (!this.ctx) return;
+                this.ctx.clearRect(0, 0, width, height);
+                let totalVerts = 0;
+                this.currentModel.traverse(c => { if(c.isMesh && c.geometry) totalVerts += c.geometry.attributes.position.count; });
+                
+                const MODE_LINES = 0, MODE_POINTS = 1, MODE_SKIP = 2;
+                let drawMode = MODE_LINES;
+                if (totalVerts > 300000) drawMode = MODE_SKIP; else if (totalVerts > 40000) drawMode = MODE_POINTS;
+                if (drawMode === MODE_SKIP) {
+                    this.ctx.fillStyle = '#ff4444'; this.ctx.fillText(`模型过大 (${totalVerts} 顶点)，已禁用 Canvas 预览`, 10, 20); return;
+                }
+                this.ctx.strokeStyle = '#00ff00'; this.ctx.lineWidth = 1; this.ctx.globalAlpha = 0.6; this.ctx.fillStyle = '#00ff00';
+                this.ctx.beginPath();
+                this.currentModel.traverse(child => {
+                    if (child.isMesh && child.geometry && child.geometry.attributes.uv) {
+                        const uvs = child.geometry.attributes.uv;
+                        const count = uvs.count; const index = child.geometry.index;
+                        if (drawMode === MODE_POINTS) {
+                            for (let i = 0; i < count; i++) {
+                                const x = uvs.getX(i) * width; const y = (1 - uvs.getY(i)) * height;
+                                this.ctx.moveTo(x, y); this.ctx.rect(x, y, 1, 1);
+                            }
+                        } else {
+                            if (index) { for (let i = 0; i < index.count; i += 3) this._drawTriangle(uvs, index.getX(i), index.getX(i+1), index.getX(i+2), width, height); } 
+                            else { for (let i = 0; i < count; i += 3) this._drawTriangle(uvs, i, i+1, i+2, width, height); }
+                        }
+                    }
+                });
+                if (drawMode === MODE_POINTS) this.ctx.fill(); else this.ctx.stroke();
+            }
+            _drawTriangle(uvs, a, b, c, w, h) {
+                const ax = uvs.getX(a) * w; const ay = (1 - uvs.getY(a)) * h;
+                const bx = uvs.getX(b) * w; const by = (1 - uvs.getY(b)) * h;
+                const cx = uvs.getX(c) * w; const cy = (1 - uvs.getY(c)) * h;
+                this.ctx.moveTo(ax, ay); this.ctx.lineTo(bx, by); this.ctx.lineTo(cx, cy); this.ctx.lineTo(ax, ay);
+            }
+        }
+
+        // --- 主逻辑 ---
+        let isElectron = false;
+        let ipcRenderer, path;
+        let webFileMap = new Map();
+        let allFilesData = []; 
+        let currentDisplayList = []; 
+        let currentSelectedIndex = -1; 
+        let currentSortType = 'date'; 
+        let currentSortDesc = true;   
+        let currentFullFilePath = ""; 
+        let currentBasePath = ""; // 补上遗漏的变量
+        let favoriteSet = new Set(); // 先设为空，防止报错
+        async function loadFavoritesData() {
+            if (isElectron) {
+                try {
+                    const savedList = await ipcRenderer.invoke('load-favorites');
+                    // 🟢 关键修复：读取时也强制把反斜杠 \ 转为 /，防止旧数据不匹配
+                    const normalizedList = savedList.map(p => p.replace(/\\/g, '/'));
+                    favoriteSet = new Set(normalizedList);
+                    console.log("收藏加载完毕，共:", favoriteSet.size, "个");
+                } catch (e) {
+                    console.error("加载收藏出错:", e);
+                    favoriteSet = new Set();
+                }
+            } else {
+                favoriteSet = new Set(JSON.parse(localStorage.getItem('fbx_favorites') || '[]'));
+            }
+        }
+        // 2. 定义应用程序主入口
+        async function initApp() {
+        }
+        // 3. 启动应用
+        initApp();
+        let isFavFilterOnly = false; // 是否只显示收藏
+
+        // 缩略图变量
+        let thumbnailCache = new Map();
+        let thumbQueue = [];
+        let isThumbProcessing = false;
+        let thumbRenderer, thumbScene, thumbCamera, thumbLoader;
+        let totalThumbCount = 0;
+        let processedThumbCount = 0;
+
+        let loadSequenceId = 0; 
+        let currentNavMode = 'default';
+
+        if (typeof require !== 'undefined') {
+            try {
+                const electron = require('electron'); ipcRenderer = electron.ipcRenderer; path = require('path');
+                if(ipcRenderer && path) isElectron = true;
+            } catch (e) { console.warn("Fallback to Web mode."); isElectron = false; }
+        }
+
+        if (!isElectron) {
+            path = { join: (...args) => args.join('/'), sep: '/' };
+            window.addEventListener('DOMContentLoaded', () => {
+                const webSection = document.getElementById('web-upload-section');
+                if(webSection) webSection.style.display = 'block';
+                const refreshBtn = document.getElementById('refresh-dir-btn'); // 修正ID
+                if(refreshBtn) refreshBtn.style.display = 'none';
+                document.getElementById('open-folder-btn').style.display = 'none'; 
+                document.querySelector('#file-list div').innerHTML = "Web模式: 请点击上方绿色按钮<br>打开包含FBX的文件夹";
+            });
+        } else {
+            window.addEventListener('DOMContentLoaded', () => {
+                const webSection = document.getElementById('web-upload-section');
+                if(webSection) webSection.style.display = 'block';
+                document.getElementById('web-upload-btn').innerText = "打开文件夹";
+            });
+        }
+
+        function openItemInExplorer() {
+            if (ctxTargetIndex === -1) return;
+            const item = currentDisplayList[ctxTargetIndex];
+            if (isElectron && item.fullPath) {
+                ipcRenderer.invoke('reveal-in-explorer', item.fullPath); 
+            }
+        }
+
+        function copyItemPath() {
+            if (ctxTargetIndex === -1) return;
+            const item = currentDisplayList[ctxTargetIndex];
+            if (item.fullPath) {
+                navigator.clipboard.writeText(item.fullPath).then(() => {
+                    console.log("路径已复制");
+                });
+            }
+        }
+
+        function updateSort() {
+            currentSortType = document.getElementById('sort-type').value;
+            renderFileList();
+        }
+
+        function toggleSortOrder() {
+            currentSortDesc = !currentSortDesc;
+            document.getElementById('sort-order').innerText = currentSortDesc ? "⬇" : "⬆";
+            renderFileList();
+        }
+
+        let isGridView = false;
+        function toggleViewMode() {
+            isGridView = !isGridView;
+            localStorage.setItem('fbx_view_mode', isGridView ? 'grid' : 'list');
+            document.getElementById('thumb-toggle-btn').classList.toggle('active', isGridView);
+            document.getElementById('file-list').style.display = isGridView ? 'none' : 'block';
+            document.getElementById('file-grid').style.display = isGridView ? 'grid' : 'none';
+            if(isGridView) initThumbRenderer();
+            renderFileList();
+        }
+
+
+        // 🟢 新增：切换收藏状态
+        function toggleFavorite(e, relativePath) {
+            if (e) e.stopPropagation(); // 防止冒泡
+            // 1. 修改内存数据
+            if (favoriteSet.has(relativePath)) {
+                favoriteSet.delete(relativePath);
+            } else {
+                favoriteSet.add(relativePath);
+            }
+            // 2. 保存数据
+            if (isElectron) {
+                // ✅ 核心修改：告诉 main.js 把数据写进 JSON 文件
+                ipcRenderer.invoke('save-favorites', [...favoriteSet]);
+            } else {
+                // Web 模式兜底
+                localStorage.setItem('fbx_favorites', JSON.stringify([...favoriteSet]));
+            }
+            // 3. 刷新界面
+            renderFileList();
+        }
+        // 🟢 新增：切换“只看收藏”
+        function toggleFavFilter() {
+            isFavFilterOnly = !isFavFilterOnly;
+            const btn = document.getElementById('fav-filter-btn');
+            if (isFavFilterOnly) {
+                btn.classList.add('active-filter');
+            } else {
+                btn.classList.remove('active-filter');
+            }
+            renderFileList();
+        }
+
+        function renderFileList() {
+            const listEl = document.getElementById('file-list');
+            const gridEl = document.getElementById('file-grid');
+            const searchVal = document.getElementById('search-input').value.toLowerCase();
+            listEl.innerHTML = ''; gridEl.innerHTML = '';
+            
+            // 1. 先过滤搜索词
+            let filtered = allFilesData.filter(item => item.name.toLowerCase().includes(searchVal));
+            // 🟢 2. 处理收藏筛选
+            if (isFavFilterOnly) {
+                filtered = filtered.filter(item => favoriteSet.has(item.relativePath));
+            }
+            // 🟢 3. 排序逻辑（收藏置顶 + 原有排序）
+            filtered.sort((a, b) => {
+                // 先看是不是收藏
+                const favA = favoriteSet.has(a.relativePath) ? 1 : 0;
+                const favB = favoriteSet.has(b.relativePath) ? 1 : 0;
+                
+                // 如果一个收藏一个没收藏，收藏的排前面
+                if (favA !== favB) {
+                    return favB - favA; 
+                }
+                // 如果收藏状态一样，再按原来的规则排
+                let valA, valB;
+                if (currentSortType === 'date') { valA = a.date || 0; valB = b.date || 0; } 
+                else { valA = a.name.toLowerCase(); valB = b.name.toLowerCase(); }
+                
+                if (valA < valB) return currentSortDesc ? 1 : -1;
+                if (valA > valB) return currentSortDesc ? -1 : 1;
+                return 0;
+            });
+            currentDisplayList = filtered;
+            currentSelectedIndex = -1;
+            thumbQueue = [];
+            if (filtered.length === 0) {
+                listEl.innerHTML = `<div style="padding:15px; color:#666; text-align:center;">没有找到文件</div>`;
+                gridEl.innerHTML = `<div style="padding:15px; color:#666; text-align:center;">没有找到文件</div>`;
+                return;
+            }
+            filtered.forEach((item, index) => {
+                const isFav = favoriteSet.has(item.relativePath);
+                const favClass = isFav ? 'active' : '';
+                const favSymbol = isFav ? '★' : '☆';
+                // --- List View (列表模式) ---
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                
+                // 1. 生成 HTML (注意：这里把 onclick 删掉了，加上了 id 用于定位，或者直接用类名)
+                div.innerHTML = `
+                    <span class="file-name-span">${item.name}</span>
+                    <span class="fav-icon ${favClass}">★</span>
+                `;
+                // 2. 🟢 关键修复：使用 JS 直接绑定点击事件，完美避开所有转义字符问题
+                const starBtn = div.querySelector('.fav-icon');
+                starBtn.onclick = (e) => {
+                    toggleFavorite(e, item.relativePath);
+                };
+                
+                div.dataset.index = index;
+                div.draggable = true;
+                div.ondragstart = (e) => {
+                    e.preventDefault();
+                    if (isElectron && item.fullPath) {
+                        ipcRenderer.send('ondragstart', item.fullPath);
+                    }
+                };
+                if (currentSortType === 'date' && item.date) {
+                    const dateStr = new Date(item.date).toLocaleString();
+                    div.title = `${item.relativePath}\n修改时间: ${dateStr}`;
+                } else { div.title = item.relativePath; }
+                
+                // 注意：点击事件绑定在 div 上，星星的点击事件在 HTML 里已经通过 onclick 绑定并阻止冒泡了
+                div.onclick = () => { selectFile(item, index, div); };
+                listEl.appendChild(div);
+                // --- Grid View (缩略图模式) ---
+                if(isGridView) {
+                    const gi = document.createElement('div'); gi.className='grid-item';
+                    
+                    // 🟢 新增：右上角的星星
+                    const favBtn = document.createElement('div');
+                    favBtn.className = `grid-fav-icon ${favClass}`;
+                    favBtn.innerHTML = '★';
+                    favBtn.onclick = (e) => toggleFavorite(e, item.relativePath);
+                    const img = document.createElement('img'); img.className='thumb-img'; img.id='thumb-'+index;
+                    img.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDUwIDUwIj48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZHk9Ii4zZW0iIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM1NTUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjgiPkZCWDwvdGV4dD48L3N2Zz4=';
+                    const nm = document.createElement('div'); nm.className='thumb-name'; nm.innerText=item.name; nm.title=item.name;
+                    
+                    gi.append(favBtn, img, nm); // 把星星也加进去
+                    
+                    gi.onclick = () => { 
+                        selectFile(item, index, null); 
+                        document.querySelectorAll('.grid-item').forEach(g=>g.classList.remove('active')); 
+                        gi.classList.add('active'); 
+                    };
+                    gridEl.appendChild(gi);
+                    if(thumbnailCache.has(item.relativePath)) img.src = thumbnailCache.get(item.relativePath);
+                    else if(isElectron) {
+                        ipcRenderer.invoke('check-thumbnail', item.fullPath, item.date).then(res => {
+                            if(res) { img.src=res; thumbnailCache.set(item.relativePath, res); }
+                            else { thumbQueue.push({item, id:'thumb-'+index}); }
+                            if(index === filtered.length - 1) checkQueueStart();
+                        });
+                    } else { thumbQueue.push({item, id:'thumb-'+index}); checkQueueStart(); }
+                }
+            });
+            if(isGridView) checkQueueStart();
+        }
+
+        function selectFile(item, idx, el) {
+            currentSelectedIndex = idx;
+            document.querySelectorAll('.file-item, .grid-item').forEach(x=>x.classList.remove('active'));
+            if(el) el.classList.add('active');
+            if (!isElectron) webFileMap.set(item.relativePath, item.rawFile);
+            loadModel(item.relativePath);
+        }
+
+        function checkQueueStart() {
+            if(thumbQueue.length > 0 && !isThumbProcessing) {
+                totalThumbCount = thumbQueue.length;
+                processedThumbCount = 0;
+                processThumbQueue();
+            }
+        }
+
+        function initThumbRenderer() {
+            if(thumbRenderer) return;
+            // 开启 alpha 透明背景，开启抗锯齿
+            thumbRenderer = new THREE.WebGLRenderer({alpha:true, antialias:true, preserveDrawingBuffer: true}); 
+            thumbRenderer.setSize(128,128);
+            // 🟢 关键修改 1：开启物理光照修正，让明暗过渡更自然
+            thumbRenderer.outputEncoding = THREE.sRGBEncoding; 
+            
+            thumbScene = new THREE.Scene(); 
+            // 🟢 关键修改 2：背景色稍微深一点点，衬托模型白
+            thumbScene.background = new THREE.Color(0x2a2a2a);
+            // --- 💡 改进的光照系统 (Clay Render 风格) ---
+            // 1. 环境光：大幅降低亮度，制造明暗对比 (从 0.8 降到 0.4)
+            thumbScene.add(new THREE.AmbientLight(0xffffff, 0.4)); 
+            
+            // 2. 主光源：从左上方打光 (模拟摄影棚主光)
+            const mainLight = new THREE.DirectionalLight(0xffffff, 1.2); 
+            mainLight.position.set(-3, 10, 8); 
+            thumbScene.add(mainLight);
+            // 3. 补光：从右侧打弱光，勾勒轮廓
+            const fillLight = new THREE.DirectionalLight(0xffeedd, 0.5);
+            fillLight.position.set(5, 2, 2);
+            thumbScene.add(fillLight);
+            thumbCamera = new THREE.PerspectiveCamera(45,1,0.1,200000);
+            thumbLoader = new THREE.FBXLoader();
+        }
+
+        function processThumbQueue() {
+            // 1. 队列检查
+            if(isThumbProcessing || !thumbQueue.length) { 
+                isThumbProcessing = false; 
+                document.getElementById('progress-info').innerText = "";
+                return; 
+            }
+            isThumbProcessing = true;
+            processedThumbCount++;
+            
+            const prog = document.getElementById('progress-info');
+            if(prog) prog.innerText = `生成中 ${processedThumbCount}/${totalThumbCount}`;
+            
+            const {item, id} = thumbQueue.shift();
+            
+            // 元素检查
+            if(!document.getElementById(id)) { 
+                isThumbProcessing = false; 
+                setTimeout(processThumbQueue, 5); 
+                return; 
+            }
+            // 获取路径
+            let finalPath = item.fullPath;
+            if(!finalPath && isElectron && currentBasePath) {
+                finalPath = path.join(currentBasePath, item.relativePath);
+            }
+            let url = isElectron ? finalPath : (webFileMap.get(item.relativePath) ? URL.createObjectURL(webFileMap.get(item.relativePath)) : "");
+            
+            if(!url) {
+                isThumbProcessing = false;
+                processThumbQueue();
+                return;
+            }
+            
+            // 超时保护
+            let timer = setTimeout(() => { 
+                console.warn("超时跳过:", item.name);
+                if(!isElectron) URL.revokeObjectURL(url);
+                isThumbProcessing = false; 
+                processThumbQueue(); 
+            }, 60000); 
+            thumbLoader.load(url, (obj) => {
+                clearTimeout(timer);
+                try {
+                    let hasMesh = false; 
+                    obj.traverse(c => { if(c.isMesh) hasMesh = true; });
+                    
+                    if(hasMesh) {
+                        // === 核心修改部分 ===
+                        // 1. 创建临时场景
+                        const localScene = new THREE.Scene();
+                        // 🟢 关键：背景设为 null (透明)，这样就没有那个灰块了
+                        localScene.background = null; 
+                        // 2. 清理相机
+                        thumbCamera.clear(); 
+                        // 3. 【矿工头灯】灯光绑在相机上
+                        const headLight = new THREE.DirectionalLight(0xffffff, 1.5);
+                        headLight.position.set(0, 0, 1); 
+                        thumbCamera.add(headLight);
+                        const topLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                        topLight.position.set(0, 1, 0); 
+                        thumbCamera.add(topLight);
+                        // 4. 把相机放入场景
+                        localScene.add(thumbCamera);
+                        
+                        // 5. 白模材质
+                        const clayMat = new THREE.MeshStandardMaterial({ 
+                            color: 0xdddddd, roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide
+                        });
+                        
+                        obj.traverse(c => { 
+                            if(c.isMesh) {
+                                c.material = clayMat; 
+                                if(c.geometry) c.geometry.computeVertexNormals(); 
+                            }
+                        });
+                        // 6. 居中与缩放计算
+                        const box = new THREE.Box3().setFromObject(obj);
+                        const sphere = new THREE.Sphere();
+                        box.getBoundingSphere(sphere);
+                        
+                        if(isNaN(sphere.radius) || sphere.radius <= 0) sphere.radius = 10;
+                        
+                        obj.position.sub(sphere.center);
+                        obj.position.y += sphere.radius * 0.15; 
+                        localScene.add(obj);
+                        const fov = thumbCamera.fov * (Math.PI / 180);
+                        let dist = sphere.radius / Math.sin(fov / 2);
+                        
+                        // 🟢 关键：改小这个数字，模型就变大了
+                        dist *= 1.05; 
+                        
+                        const viewDir = new THREE.Vector3(1, 0.8, 1).normalize();
+                        thumbCamera.position.copy(viewDir.multiplyScalar(dist));
+                        thumbCamera.lookAt(0, 0, 0);
+                        thumbCamera.near = Math.max(0.01, sphere.radius / 100);
+                        thumbCamera.far = Math.max(200000, sphere.radius * 20);
+                        thumbCamera.updateProjectionMatrix(); 
+                        
+                        // 7. 渲染
+                        thumbRenderer.clear();
+                        thumbRenderer.render(localScene, thumbCamera);
+                        
+                        // 8. 输出
+                        const data = thumbRenderer.domElement.toDataURL("image/png");
+                        const imgEl = document.getElementById(id);
+                        if(imgEl) {
+                            imgEl.src = data;
+                            
+                            // 🟢🟢🟢 修复点：一定要把透明度改回 1，否则就是灰的！ 🟢🟢🟢
+                            imgEl.style.opacity = '1'; 
+                        }
+                        
+                        thumbnailCache.set(item.relativePath, data);
+                        if(isElectron && finalPath) {
+                            ipcRenderer.invoke('save-thumbnail', finalPath, item.date, data).catch(err => console.error(err));
+                        }
+                        
+                        // 9. 拆灯（重要）
+                        thumbCamera.remove(headLight);
+                        thumbCamera.remove(topLight);
+                    }
+                } catch(e) { console.error("渲染错误:", e); }
+                
+                if(!isElectron) URL.revokeObjectURL(url);
+                isThumbProcessing = false; 
+                setTimeout(processThumbQueue, 10); 
+            }, undefined, (err) => { 
+                clearTimeout(timer); 
+                console.error("加载失败:", err);
+                isThumbProcessing = false; 
+                processThumbQueue(); 
+            });
+        }
+
+        function handleWebFiles(files) {
+            allFilesData = []; webFileMap.clear(); let fbxCount = 0; let folderName = "WebUpload";
+            if (files.length > 0 && files[0].webkitRelativePath) { folderName = files[0].webkitRelativePath.split('/')[0]; }
+            Array.from(files).forEach(file => {
+                if (file.name.toLowerCase().endsWith('.fbx')) {
+                    const relativePath = file.webkitRelativePath || file.name;
+                    allFilesData.push({ name: file.name, relativePath: relativePath, date: file.lastModified, rawFile: file });
+                    fbxCount++;
+                }
+            });
+            document.getElementById('dir-name').innerText = folderName;
+            document.getElementById('file-count').innerText = fbxCount;
+            renderFileList();
+        }
+
+        async function handleOpenFolder() {
+            if (isElectron) {
+                const folderPath = await ipcRenderer.invoke('open-folder-dialog');
+                if (folderPath) scanFiles(folderPath);
+            } else { document.getElementById('folder-input').click(); }
+        }
+
+        function refreshCurrentDirectory() { if (isElectron && currentBasePath) { scanFiles(currentBasePath); } }
+
+        async function scanFiles(customPath) {
+            if (!isElectron) return;
+            const result = await ipcRenderer.invoke('scan-folder', customPath);
+            currentBasePath = result.path;
+            addToHistory(currentBasePath); 
+            document.getElementById('dir-name').innerText = currentBasePath.split(path.sep).pop() || "Root";
+            document.getElementById('file-count').innerText = result.files.length;
+            allFilesData = result.files.map(f => {
+                if (typeof f === 'string') { return { name: f, relativePath: f, date: 0 }; }
+                return { name: f.name, relativePath: f.relativePath, fullPath: f.fullPath, date: f.mtime };
+            });
+            renderFileList();
+        }
+
+        function revealInExplorer() { if (isElectron && currentFullFilePath) ipcRenderer.invoke('reveal-in-explorer', currentFullFilePath); }
+        function filterFiles(query) { renderFileList(); }
+        function copyPath() {
+            const input = document.getElementById('selected-path-input'); if(!input || !input.value) return;
+            input.select(); document.execCommand('copy');
+            const btn = document.getElementById('copy-path-btn'); const originalText = btn.innerText;
+            btn.innerText = "✓"; setTimeout(() => { btn.innerText = originalText; }, 1000);
+        }
+
+        let scene, camera, renderer, controls, loader;
+        let gridHelper;
+        let ddsLoader, tgaLoader, textureLoader; 
+        let currentModel = null;
+        let viewCube, uvViewer; 
+        
+        let matStandard, matWire, matUV, matVertexColor;
+        let defaultUVTexture; 
+        let isUVMode = false;
+        let isNormalsVisible = false;
+        let isDoubleSided = true; 
+        let isAutoCenter = false; 
+        // 🔴 新增这3个变量，用于记录材质状态
+        let currentBaseType = 'standard'; // 记录底色 (standard/vertexColor/vertexAlpha/uv)
+        let isPureWireframe = false;      // 记录 F3 状态
+        let isEdgedFaces = false;  
+        let normalsHelpers = [];
+        let wireframeState = 0; 
+
+        function toggleOriginMode() {
+            isAutoCenter = !isAutoCenter;
+            const btn = document.getElementById('btn-origin');
+            
+            if (isAutoCenter) {
+                btn.innerText = "位置: 自动归零";
+                btn.classList.add('active-btn');
+            } else {
+                btn.innerText = "位置: 原始坐标";
+                btn.classList.remove('active-btn');
+            }
+            // 如果当前已经加载了模型，直接应用新位置，不用重新加载
+            if (currentModel) {
+                applyModelTransform(currentModel);
+                fitCamera(); // 重新聚焦，不然模型跑远了看不见
+            }
+        }
+
+         function applyModelTransform(model) {
+            if (!model) return;
+            
+            // 1. 先重置模型位置到 (0,0,0)，防止多次计算叠加
+            model.position.set(0, 0, 0);
+            model.updateMatrixWorld(); 
+            // 2. 如果是“自动归零”模式，计算中心点并反向移动
+            if (isAutoCenter) {
+                const box = new THREE.Box3().setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
+                // 把模型移动到中心 (相当于 model.position = -center)
+                model.position.sub(center);
+            }
+            // 如果是“原始坐标”模式，就保持 (0,0,0) 不动，即 FBX 里的原始位置
+        }
+
+        function toggleHistory() { 
+            document.getElementById('history-dropdown').classList.toggle('show'); 
+            if(document.getElementById('history-dropdown').classList.contains('show')) renderHistoryList(); 
+        }
+        
+        document.addEventListener('click', (e)=>{ 
+            if(!e.target.closest('#history-btn') && !e.target.closest('#history-dropdown')) 
+                document.getElementById('history-dropdown').classList.remove('show'); 
+        });
+
+        function addToHistory(p) { 
+            if(!p) return; 
+            let h = JSON.parse(localStorage.getItem('fbx_hist')||'[]'); 
+            h = h.filter(x => x !== p); 
+            h.unshift(p); 
+            if(h.length > 10) h = h.slice(0, 10); 
+            localStorage.setItem('fbx_hist', JSON.stringify(h)); 
+        }
+        
+        function selectHistoryItem(p) {
+            scanFiles(p.replace(/\\/g,'\\'));
+            document.getElementById('history-dropdown').classList.remove('show');
+        }
+
+        function renderHistoryList() {
+            const h = JSON.parse(localStorage.getItem('fbx_hist')||'[]');
+            const el = document.getElementById('history-dropdown');
+            if(!h.length) {
+                el.innerHTML = '<div style="padding:10px;text-align:center;font-size:12px;color:#666">无记录</div>';
+                return;
+            }
+            el.innerHTML = h.map(p => 
+                `<div class="history-item" onclick="selectHistoryItem('${p.replace(/\\/g,'\\\\')}')">
+                    <span style="font-size:14px;">📂</span>
+                    <span class="history-path" title="${p}">${p}</span>
+                 </div>`
+            ).join('') + '<div class="history-item" style="justify-content:center; color:#888;" onclick="localStorage.removeItem(\'fbx_hist\');renderHistoryList()">清空历史</div>';
+        }
+
+        function resetUVParams() {
+            document.getElementById('tilingRange').value = 1.0; 
+            document.getElementById('tilingVal').innerText = "1.0";
+            document.getElementById('flowSpeed').value = 0.00;
+            document.getElementById('speedVal').innerText = "0.0";
+            document.getElementById('flowU').checked = false;
+            document.getElementById('flowV').checked = false;
+            if(matUV && matUV.map) {
+                matUV.map.repeat.set(1.0, 1.0);
+                matUV.map.offset.set(0,0);
+                matUV.map.needsUpdate = true;
+            }
+        }
+
+        async function initApp() {
+            // 1. 先初始化 3D 场景和界面
+            init3D();
+            initSidebarResize();
+            setupDragAndDrop();
+            loadConfig();
+            // 2. 🟢 关键：等待收藏数据加载完毕！
+            // 只有等它读完 JSON，favoriteSet 里才有数据，后面的 renderFileList 才能正确显示星星
+            await loadFavoritesData();
+            // 3. 最后再加载文件列表
+            if (isElectron && ipcRenderer) {
+                const history = JSON.parse(localStorage.getItem('fbx_hist') || '[]');
+                if (history.length > 0) {
+                    // 加载上次打开的文件夹
+                    scanFiles(history[0]);
+                }
+            }
+        }
+        // 执行启动
+        initApp();
+
+        function loadConfig() {
+            const savedWidth = localStorage.getItem('fbx_sidebar_width');
+            if(savedWidth) document.getElementById('sidebar').style.width = savedWidth;
+            const savedNavMode = localStorage.getItem('fbx_nav_mode');
+            if(savedNavMode) { document.getElementById('nav-mode').value = savedNavMode; updateNavigationMode(); }
+            const savedViewMode = localStorage.getItem('fbx_view_mode');
+            if(savedViewMode === 'grid') { isGridView = false; toggleViewMode(); }
+        }
+
+        function updateNavigationMode() {
+            const mode = document.getElementById('nav-mode').value;
+            currentNavMode = mode;
+            localStorage.setItem('fbx_nav_mode', mode);
+            if (mode === 'max') {
+                // --- 3ds Max 模式 ---
+                // 左键：无相机操作 (仅用于选择)
+                // 右键：无相机操作 (仅用于菜单)
+                // 中键：平移 (配合 Alt 键变旋转)
+                controls.mouseButtons = { 
+                    LEFT: null, 
+                    MIDDLE: THREE.MOUSE.PAN, 
+                    RIGHT: null 
+                };
+                
+                // 3ds Max 习惯：滚轮缩放速度稍微快一点
+                controls.zoomSpeed = 1.2; 
+            } else {
+                // --- 默认模式 ---
+                // 左键：旋转
+                // 中键：缩放 (Dolly)
+                // 右键：平移
+                controls.mouseButtons = { 
+                    LEFT: THREE.MOUSE.ROTATE, 
+                    MIDDLE: THREE.MOUSE.DOLLY, 
+                    RIGHT: THREE.MOUSE.PAN 
+                };
+                
+                // 恢复默认缩放速度
+                controls.zoomSpeed = 1.0;
+            }
+            
+            controls.update();
+        }
+
+        function initSidebarResize() {
+            const sidebar = document.getElementById('sidebar');
+            const resizer = document.getElementById('sidebar-resizer');
+            let isResizing = false;
+            
+            resizer.addEventListener('mousedown', (e) => {
+                isResizing = true; 
+                sidebar.classList.add('resizing'); 
+                document.body.style.cursor = 'col-resize'; 
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                let newWidth = e.clientX; 
+                if (newWidth < 150) newWidth = 150; 
+                if (newWidth > 800) newWidth = 800; 
+                sidebar.style.width = newWidth + 'px';
+            });
+            
+            document.addEventListener('mouseup', () => {
+                if (isResizing) { 
+                    isResizing = false; 
+                    sidebar.classList.remove('resizing'); 
+                    document.body.style.cursor = 'default'; 
+                    onWindowResize(); 
+                    localStorage.setItem('fbx_sidebar_width', sidebar.style.width);
+                }
+            });
+        }
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x404040); 
+
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444);
+            hemiLight.position.set(0, 20, 0);
+            scene.add(hemiLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff);
+            dirLight.position.set(10, 20, 10);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 10, 2000000);
+            camera.position.set(1000, 1000, 1500);
+
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true, 
+                alpha: true,
+                logarithmicDepthBuffer: true
+            });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.target.set(0, 2, 0);
+            controls.screenSpacePanning = true; 
+
+            loader = new THREE.FBXLoader();
+            ddsLoader = new THREE.DDSLoader();
+            tgaLoader = new THREE.TGALoader(); 
+            textureLoader = new THREE.TextureLoader();
+
+            initMaterials();
+            initGridSystem();
+            
+            viewCube = new ViewCube(camera, controls);
+            uvViewer = new UVViewer(); 
+            initDraggableInputs();
+
+            
+            const folderInput = document.getElementById('folder-input');
+            if (folderInput) { folderInput.addEventListener('change', (event) => handleWebFiles(event.target.files)); }
+            const resizeObserver = new ResizeObserver(() => onWindowResize());
+            resizeObserver.observe(container);
+            animate();
+        }
+
+        function selectFileByIndex(index) {
+            if (index < 0 || index >= currentDisplayList.length) return;
+            currentSelectedIndex = index;
+            const item = currentDisplayList[index];
+            document.querySelectorAll('.file-item, .grid-item').forEach(x=>x.classList.remove('active'));
+            if(isGridView) {
+                const gridItems = document.getElementById('file-grid').children;
+                if(gridItems[index]) {
+                    const el = gridItems[index];
+                    el.classList.add('active');
+                    el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+                }
+            } else {
+                const listItems = document.getElementById('file-list').children;
+                if(listItems[index]) {
+                    const el = listItems[index];
+                    el.classList.add('active');
+                    el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+                }
+            }
+            if (!isElectron) { webFileMap.set(item.relativePath, item.rawFile); }
+            loadModel(item.relativePath);
+        }
+
+        function initMaterials() {
+            matStandard = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.5, metalness: 0.1, side: THREE.DoubleSide });
+            matWire = new THREE.MeshBasicMaterial({ 
+                color: 0x00ff00, wireframe: true, side: THREE.DoubleSide,
+                depthTest: true, depthWrite: false, polygonOffset: true,
+                polygonOffsetFactor: -1.0, polygonOffsetUnits: -4.0 
+            });
+            matVertexColor = new THREE.MeshBasicMaterial({ vertexColors: THREE.VertexColors, side: THREE.DoubleSide });
+            const cvs = document.createElement('canvas'); cvs.width = 512; cvs.height = 512; const ctx = cvs.getContext('2d');
+            const step = 64; 
+            for(let y=0; y<512; y+=step) { 
+                for(let x=0; x<512; x+=step) { 
+                    const isWhite = (x/step + y/step) % 2 === 0; 
+                    ctx.fillStyle = isWhite ? '#ffffff' : '#ff3333'; 
+                    ctx.fillRect(x,y,step,step); 
+                    if(isWhite) { ctx.fillStyle = '#000'; ctx.font = '10px Arial'; ctx.fillText(`${x/step},${y/step}`, x+2, y+12); } 
+                } 
+            }
+            defaultUVTexture = new THREE.CanvasTexture(cvs); 
+            defaultUVTexture.wrapS = THREE.RepeatWrapping; defaultUVTexture.wrapT = THREE.RepeatWrapping;
+            matUV = new THREE.MeshBasicMaterial({ map: defaultUVTexture, side: THREE.DoubleSide });
+        }
+
+        function setupDragAndDrop() {
+            const container = document.getElementById('canvas-container');
+            const hint = document.getElementById('drag-hint');
+            container.addEventListener('dragover', (e) => { e.preventDefault(); container.classList.add('drag-over'); if(isUVMode) hint.style.display = 'block'; });
+            container.addEventListener('dragleave', (e) => { e.preventDefault(); container.classList.remove('drag-over'); hint.style.display = 'none'; });
+            container.addEventListener('drop', (e) => {
+                e.preventDefault(); container.classList.remove('drag-over'); hint.style.display = 'none';
+                if (!isUVMode) { alert("请先点击 [启用贴图预览] 按钮，再拖拽贴图！"); return; }
+                if (e.dataTransfer.files.length > 0) loadDroppedTexture(e.dataTransfer.files[0]);
+            });
+        }
+
+        function loadDroppedTexture(file) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            const url = URL.createObjectURL(file);
+            const loading = document.getElementById('loading-overlay');
+            const onLoad = (texture) => {
+                texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
+                matUV.map = texture; matUV.needsUpdate = true; loading.style.display = 'none';
+                resetUVParams();
+            };
+            const onError = (err) => { console.error(err); loading.style.display = 'none'; alert("加载贴图失败"); };
+            loading.style.display = 'flex'; loading.innerText = "正在加载贴图...";
+            if (ext === 'dds') ddsLoader.load(url, onLoad, undefined, onError);
+            else if (ext === 'tga') tgaLoader.load(url, onLoad, undefined, onError);
+            else if (['png', 'jpg', 'jpeg', 'bmp', 'gif'].includes(ext)) textureLoader.load(url, onLoad, undefined, onError);
+            else { loading.style.display = 'none'; alert("不支持的文件格式"); }
+        }
+
+        function resetUVTexture() {
+            if(matUV) { matUV.map = defaultUVTexture; matUV.needsUpdate = true; resetUVParams(); }
+        }
+        
+        function updateUVTiling(val) {
+            document.getElementById('tilingVal').innerText = val;
+            if(matUV && matUV.map) { matUV.map.repeat.set(val, val); matUV.map.needsUpdate = true; }
+        }
+
+        function toggleUVWindow(forceState) {
+            const win = document.getElementById('uv-layout-container');
+            const btn = document.getElementById('btn-uv-layout');
+            const controlsDiv = document.getElementById('controls');
+            const isHidden = win.style.display === 'none' || win.style.display === '';
+            const newState = (typeof forceState !== 'undefined') ? forceState : isHidden;
+            win.style.display = newState ? 'block' : 'none';
+            if(newState) {
+                btn.classList.add('active-btn'); setTimeout(() => { controlsDiv.scrollTop = controlsDiv.scrollHeight; }, 10);
+                if(uvViewer) uvViewer.checkAndDraw(); 
+            } else { btn.classList.remove('active-btn'); }
+        }
+
+        function loadModel(identifier, element) {
+            toggleUVWindow(false);
+            if (isNormalsVisible) toggleNormals(); 
+            const loading = document.getElementById('loading-overlay');
+            loading.style.display = 'flex'; 
+            loadSequenceId++;
+            const myLoadId = loadSequenceId;
+
+            let loadUrl = ""; let displayPath = identifier;
+            if (isElectron) { loadUrl = path.join(currentBasePath, identifier); displayPath = loadUrl; currentFullFilePath = loadUrl; } 
+            else {
+                const fileObj = webFileMap.get(identifier);
+                if (fileObj) loadUrl = URL.createObjectURL(fileObj); else { loading.style.display = 'none'; return; }
+                currentFullFilePath = ""; 
+            }
+            const pathSection = document.getElementById('selected-path-section');
+            const pathInput = document.getElementById('selected-path-input');
+            if(pathSection) pathSection.style.display = 'block'; if(pathInput) pathInput.value = displayPath;
+
+            loader.load(loadUrl, (object) => {
+                if (myLoadId !== loadSequenceId) return;
+                if (currentModel) {
+                    clearNormalsHelpers(); scene.remove(currentModel);
+                    currentModel.traverse(child => { if(child.isMesh) { child.geometry.dispose(); if(Array.isArray(child.material)) child.material.forEach(m=>m.dispose()); else child.material.dispose(); } });
+                }
+                currentModel = object; updateModelStats(object); if (uvViewer && uvViewer.ctx) uvViewer.updateModel(object);
+                applyModelTransform(object);
+                
+                // 🟢 自动调整网格大小
+                autoAdjustGrid(object);
+
+                updateMaterialState(); 
+                scene.add(object); fitCamera(); 
+                loading.style.display = 'none';
+                if (!isElectron) URL.revokeObjectURL(loadUrl);
+            }, (xhr) => { 
+                if (myLoadId === loadSequenceId && xhr.lengthComputable) {
+                    loading.innerText = `加载中... ${Math.round((xhr.loaded / xhr.total) * 100)}%`; 
+                }
+            },
+            (error) => { 
+                if (myLoadId === loadSequenceId) {
+                    console.error(error); loading.innerText = "加载失败"; setTimeout(() => { loading.style.display = 'none'; }, 2000); 
+                }
+            });
+        }
+
+        function updateModelStats(model) {
+            let verts = 0; let tris = 0;
+            if (model) {
+                model.traverse(child => {
+                    if (child.isMesh && child.geometry) {
+                        verts += child.geometry.attributes.position.count;
+                        if (child.geometry.index) tris += child.geometry.index.count / 3; else tris += child.geometry.attributes.position.count / 3;
+                    }
+                });
+            }
+            document.getElementById('stat-verts').innerText = verts.toLocaleString();
+            document.getElementById('stat-tris').innerText = Math.floor(tris).toLocaleString();
+        }
+
+        function cleanWireframeOverlay() {
+            if (!currentModel) return;
+            const toRemove = [];
+            currentModel.traverse(child => { if (child.isMesh) { for (let i = 0; i < child.children.length; i++) { if (child.children[i].name === '__wireframe_overlay__') toRemove.push({ parent: child, item: child.children[i] }); } } });
+            toRemove.forEach(obj => obj.parent.remove(obj.item));
+        }
+
+        function addWireframeOverlay() {
+            if (!currentModel) return;
+            currentModel.traverse(child => {
+                if (child.isMesh && child.name !== '__wireframe_overlay__') {
+                    const wireMesh = new THREE.Mesh(child.geometry, matWire.clone());
+                    wireMesh.name = '__wireframe_overlay__'; child.add(wireMesh);
+                }
+            });
+        }
+
+        // --- 新的材质控制系统 (Max 风格版) ---
+        // 1. 设置底色 (标准/顶点/UV)
+        function setBaseMaterial(type) {
+            // 🔴 核心修改：如果当前已经是这个模式，且不是切回标准模式，那就“取消”它（变回 Standard）
+            if (currentBaseType === type && type !== 'standard') {
+                currentBaseType = 'standard';
+            } else {
+                currentBaseType = type;
+            }
+            // 切底色时，关闭纯线框(F3)，但保留实体线框(F4)状态
+            isPureWireframe = false; 
+            updateMaterialState();
+        }
+        // 2. 切换 F3 (纯线框)
+        function toggleF3Mode() {
+            isPureWireframe = !isPureWireframe;
+            // 如果开启纯线框，就没必要显示实体线框叠加了，视觉上会乱，但状态可以保留
+            updateMaterialState();
+        }
+        // 3. 🔴 新增：切换 F4 (实体+线框)
+        function toggleF4Mode() {
+            isEdgedFaces = !isEdgedFaces;
+            // 如果在纯线框(F3)模式下按 F4，Max的逻辑是自动切回实体模式并显示线框
+            if (isEdgedFaces && isPureWireframe) {
+                isPureWireframe = false;
+            }
+            updateMaterialState();
+        }
+        // 4. 核心刷新函数
+        function updateMaterialState() {
+            // --- A. 更新按钮高亮 ---
+            ['btn-std', 'btn-edged', 'btn-wire', 'btn-vcolor', 'btn-valpha', 'btn-uv'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.classList.remove('active-btn');
+            });
+            // 1. 标准材质按钮：只要不是顶点色/UV/纯线框，它就是激活的
+            if (!isPureWireframe && currentBaseType === 'standard') {
+                document.getElementById('btn-std').classList.add('active-btn');
+            }
+            // 2. F4 按钮：只要 F4 开启就高亮 (独立状态)
+            if (isEdgedFaces) {
+                document.getElementById('btn-edged').classList.add('active-btn');
+            }
+            // 3. F3 按钮：纯线框开启就高亮
+            if (isPureWireframe) {
+                document.getElementById('btn-wire').classList.add('active-btn');
+            }
+            // 4. 其他底色按钮
+            if (!isPureWireframe) {
+                if (currentBaseType === 'vertexColor') document.getElementById('btn-vcolor').classList.add('active-btn');
+                if (currentBaseType === 'vertexAlpha') document.getElementById('btn-valpha').classList.add('active-btn');
+                if (currentBaseType === 'uv') document.getElementById('btn-uv').classList.add('active-btn');
+            }
+            // UV 面板控制
+            const uvPanel = document.getElementById('uv-control-panel');
+            if(uvPanel) uvPanel.style.display = (currentBaseType === 'uv') ? 'block' : 'none';
+            isUVMode = (currentBaseType === 'uv');
+            if (!currentModel) return;
+            // --- B. 材质逻辑 ---
+            let targetMat = matStandard;
+            if (isPureWireframe) {
+                targetMat = matWire; // F3 优先级最高，直接变纯线框
+            } else {
+                // 如果不是纯线框，看底色是什么
+                if (currentBaseType === 'vertexColor' || currentBaseType === 'vertexAlpha') targetMat = matVertexColor;
+                else if (currentBaseType === 'uv') targetMat = matUV;
+                else targetMat = matStandard;
+            }
+            // 应用材质
+            currentModel.traverse(child => {
+                if (child.isMesh && child.name !== '__wireframe_overlay__') {
+                    child.material = targetMat;
+                    // 顶点色处理
+                    if (!isPureWireframe && (currentBaseType === 'vertexColor' || currentBaseType === 'vertexAlpha')) {
+                        if (child.geometry.attributes.alphaColor) {
+                            if (!child.geometry.attributes._origColor) child.geometry.attributes._origColor = child.geometry.attributes.color;
+                            if (currentBaseType === 'vertexAlpha') child.geometry.attributes.color = child.geometry.attributes.alphaColor;
+                            else child.geometry.attributes.color = child.geometry.attributes._origColor;
+                            child.geometry.attributes.color.needsUpdate = true;
+                        }
+                    }
+                }
+            });
+            // --- C. F4 叠加线框处理 ---
+            cleanWireframeOverlay();
+            // 只有在“非纯线框” 且 “F4开启” 时，才叠加线框
+            if (!isPureWireframe && isEdgedFaces) {
+                addWireframeOverlay();
+            }
+            
+            applyDoubleSided();
+        }
+        // 4. 修正后的位置切换逻辑
+        function toggleOriginMode() {
+            isAutoCenter = !isAutoCenter;
+            const btn = document.getElementById('btn-origin');
+            
+            if (isAutoCenter) {
+                btn.innerText = "📍 自动归零";
+                btn.classList.add('active-btn'); // 激活变蓝
+            } else {
+                btn.innerText = "📍 原始坐标";
+                btn.classList.remove('active-btn'); // 默认灰色
+            }
+            if (currentModel) {
+                applyModelTransform(currentModel);
+                // 切换到自动归零时，聚焦一下，防止看不到
+                if(isAutoCenter) fitCamera();
+            }
+        }
+
+        function toggleNormals() {
+            isNormalsVisible = !isNormalsVisible;
+            const btn = document.getElementById('btn-normals');
+            btn.innerText = isNormalsVisible ? "隐藏法线 (Hide Normals)" : "显示法线 (Normals)";
+            if(isNormalsVisible) btn.classList.add('active-btn'); else btn.classList.remove('active-btn');
+            if (isNormalsVisible) createNormalsHelpers(); else clearNormalsHelpers();
+        }
+
+        function createNormalsHelpers() {
+            if (!currentModel) return; 
+            clearNormalsHelpers();
+            // --- 🟢 自动计算法线长度 ---
+            // 1. 获取模型尺寸
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            // 2. 取最大边长
+            const maxDim = Math.max(size.x, size.y, size.z);
+            
+            // 3. 设为模型尺寸的 5%，且限制最小长度为 2
+            let len = maxDim * 0.05;
+            if (len < 2) len = 2; 
+            currentModel.traverse(child => { 
+                if (child.isMesh && child.name !== '__wireframe_overlay__') { 
+                    // 使用动态计算的 len
+                    const helper = new THREE.VertexNormalsHelper(child, len, 0xff0000); 
+                    scene.add(helper); 
+                    normalsHelpers.push(helper); 
+                } 
+            });
+        }
+
+
+        function clearNormalsHelpers() { normalsHelpers.forEach(h => scene.remove(h)); normalsHelpers = []; }
+
+        function toggleDoubleSided() {
+            isDoubleSided = !isDoubleSided;
+            const btn = document.getElementById('btn-side');
+            btn.innerText = isDoubleSided ? "双面显示: 开" : "双面显示: 关";
+            if(isDoubleSided) btn.classList.add('active-btn'); else btn.classList.remove('active-btn');
+            applyDoubleSided();
+        }
+
+        function applyDoubleSided() {
+            if (!currentModel) return;
+            const side = isDoubleSided ? THREE.DoubleSide : THREE.FrontSide;
+            currentModel.traverse(child => {
+                if (child.isMesh) {
+                    if (child.name === '__wireframe_overlay__') child.material.side = side;
+                    else if (Array.isArray(child.material)) child.material.forEach(m => { m.side = side; m.needsUpdate = true; });
+                    else { child.material.side = side; child.material.needsUpdate = true; }
+                }
+            });
+            matStandard.side = side; matStandard.needsUpdate = true; matWire.side = side; matWire.needsUpdate = true;
+            matUV.side = side; matUV.needsUpdate = true; matVertexColor.side = side; matVertexColor.needsUpdate = true;
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar'); 
+            const btn = document.getElementById('sidebar-toggle-btn');
+            const container = document.getElementById('canvas-container');
+            // 1. 锁死宽度：在动画开始前，强行固定 Canvas 的宽度，防止 WebGL 疯狂重绘
+            container.style.width = container.clientWidth + 'px';
+            sidebar.classList.toggle('collapsed'); 
+            
+            if (sidebar.classList.contains('collapsed')) btn.innerText = "▶"; 
+            else btn.innerText = "◀";
+            // 2. 动画结束解锁：侧边栏 CSS 动画时间是 0.3s，我们设 310ms 后解锁
+            setTimeout(() => {
+                container.style.width = ''; // 解除锁定
+                onWindowResize(); // 手动触发一次最终的重绘
+            }, 310);
+        }
+
+        function toggleControls() {
+            const container = document.getElementById('right-panel-container');
+            const btn = document.getElementById('controls-toggle-btn');
+            container.classList.toggle('collapsed');
+            if (container.classList.contains('collapsed')) {
+                btn.innerText = "◀";
+            } else {
+                btn.innerText = "▶";
+            }
+        }
+
+
+        function fitCamera() {
+            if (!currentModel) return;
+            camera.clearViewOffset();
+            // 1. 获取模型包围盒
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const size = box.getSize(new THREE.Vector3()); 
+            const center = box.getCenter(new THREE.Vector3());
+            
+            // 2. 获取最大边长
+            const maxDim = Math.max(size.x, size.y, size.z);
+            
+            // 防止除以0（空模型保护）
+            if (maxDim === 0) return;
+            const fov = camera.fov * (Math.PI / 180);
+            let cameraDistance = Math.abs(maxDim / (2 * Math.tan(fov / 2))); 
+            
+            // 留出 50% 的边距，视角更舒服
+            cameraDistance *= 1.5; 
+            // --- 🟢 关键修复：动态调整相机的“可视范围” ---
+            
+            // 1. 修复小模型看不见的问题：
+            // 如果模型很小（例如 0.1），Near 必须比 0.1 还小（例如 0.001），否则会被裁剪
+            // 我们设置为模型尺寸的 千分之一，最低不小于 0.0001
+            camera.near = Math.max(0.0001, maxDim / 1000); 
+            // 2. 修复大模型被切掉的问题：
+            // Far 设为尺寸的 100 倍，并保证至少有 2000
+            camera.far = Math.max(2000, maxDim * 100);
+            
+            // ⚠️ 必须更新投影矩阵，否则上述修改无效
+            camera.updateProjectionMatrix(); 
+            // 3. 移动相机位置
+            const direction = new THREE.Vector3(1, 1, 1).normalize();
+            camera.position.copy(center).add(direction.multiplyScalar(cameraDistance));
+            
+            // 4. 设置旋转中心
+            controls.target.copy(center);
+            
+            // 5. 调整控制器的缩放限制，防止用户把自己滚“进去”
+            controls.minDistance = camera.near * 2;
+            controls.maxDistance = camera.far / 2;
+            
+            controls.update();
+        }
+
+        function resetCamera() {
+            if (!gridHelper) {
+                controls.reset();
+                return;
+            }
+
+            // 1) 清掉任何旧的视口偏移（很关键）
+            camera.clearViewOffset();
+
+            // 2) 以世界中心作为复位中心
+            controls.target.set(0, 0, 0);
+
+            // 3) 计算一个稳定的默认观察距离
+            if (!gridHelper.geometry.boundingSphere) {
+                gridHelper.geometry.computeBoundingSphere();
+            }
+            const radius = gridHelper.geometry.boundingSphere.radius;
+            const fov = camera.fov * (Math.PI / 180);
+            const dist = (radius / Math.sin(fov / 2)) * 1.2;
+
+            // 4) 设置一个固定透视角
+            const viewDir = new THREE.Vector3(1, 1, 1).normalize();
+            camera.position.copy(viewDir.multiplyScalar(dist));
+
+            // 5) 更新裁剪面
+            camera.near = Math.max(0.1, dist / 1000);
+            camera.far = Math.max(200000, dist * 5);
+            camera.updateProjectionMatrix();
+
+            controls.update();
+        }
+
+
+
+        // 🟢 新增功能：根据模型自动调整网格大小
+        function autoAdjustGrid(model) {
+            // 1. 计算模型的包围盒
+            const box = new THREE.Box3().setFromObject(model);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            // 2. 取长宽中的最大值 (忽略高度 y)
+            const maxDim = Math.max(size.x, size.z);
+            
+            // console.log("模型最大尺寸:", maxDim);
+            // 3. 获取下拉框元素 (ID: grid-size-select)
+            const gridSelect = document.getElementById('grid-size-select');
+            if (!gridSelect) return;
+            
+            let targetValue = "medium"; // 默认中 (50m)
+
+            // 单位说明：这里 maxDim 是 FBX 的单位 (通常 cm)
+            // small (5m) = 500
+            // medium (50m) = 5000
+            // large (500m) = 50000
+            
+            // 如果模型小于 15米 (1500)，用小网格
+            if (maxDim <= 1500) {
+                targetValue = "small"; 
+            } else if (maxDim > 10000) {
+                // 如果模型大于 100米 (10000)，用大网格
+                targetValue = "large"; 
+            } else {
+                targetValue = "medium";
+            }
+
+            // 5. 应用设置
+            gridSelect.value = targetValue;
+            
+            // 6. 触发更新
+            changeGridSystem();
+        }
+
+        function renderFrame() {
+            renderer.render(scene, camera);
+        }
+
+        let ctxTargetIndex = -1; 
+        const fileMenu = document.getElementById('ctx-menu');
+        const ctxGridOnly = document.getElementById('ctx-grid-only');
+        const canvasMenu = document.getElementById('canvas-ctx-menu');
+
+        function showFileContextMenu(e, index, isGridMode) {
+            e.preventDefault();
+            ctxTargetIndex = index;
+            if (ctxTargetIndex !== currentSelectedIndex) {
+                selectFileByIndex(ctxTargetIndex);
+            }
+            canvasMenu.style.display = 'none';
+            if (isGridMode) {
+                ctxGridOnly.style.display = 'block';
+            } else {
+                ctxGridOnly.style.display = 'none';
+            }
+            fileMenu.style.display = 'block';
+            let menuH = isGridMode ? 145 : 70;
+            let top = e.pageY;
+            if (top + menuH > window.innerHeight) top -= menuH;
+            fileMenu.style.left = e.pageX + 'px';
+            fileMenu.style.top = top + 'px';
+        }
+
+        document.getElementById('file-grid').addEventListener('contextmenu', (e) => {
+            const item = e.target.closest('.grid-item');
+            if (item) {
+                const allItems = Array.from(document.getElementById('file-grid').children);
+                const idx = allItems.indexOf(item);
+                showFileContextMenu(e, idx, true); 
+            }
+        });
+
+        const bgMenu = document.getElementById('bg-ctx-menu');
+const fileGrid = document.getElementById('file-grid');
+const fileList = document.getElementById('file-list');
+// 1. 全局点击监听：点击任意位置（左键），关闭所有右键菜单
+document.addEventListener('click', (e) => {
+    if(fileMenu) fileMenu.style.display = 'none';
+    if(canvasMenu) canvasMenu.style.display = 'none';
+    if(bgMenu) bgMenu.style.display = 'none';
+});
+document.addEventListener('click', (e) => {
+    if(fileMenu) fileMenu.style.display = 'none';
+    if(canvasMenu) canvasMenu.style.display = 'none';
+    if(bgMenu) bgMenu.style.display = 'none';
+});
+// 2. 监听网格区域 (file-grid) 右键
+const fileGridEl = document.getElementById('file-grid'); // 确保变量名正确
+if (fileGridEl) {
+    fileGridEl.addEventListener('contextmenu', (e) => {
+        e.preventDefault(); // 阻止浏览器默认菜单
+        // 尝试找到被点击的格子
+        const item = e.target.closest('.grid-item');
+        
+        if (item) {
+            // A. 点在文件上 -> 显示文件菜单
+            const allItems = Array.from(fileGridEl.children);
+            const idx = allItems.indexOf(item);
+            
+            if(bgMenu) bgMenu.style.display = 'none';
+            showFileContextMenu(e, idx, true); 
+        } 
+        else {
+            // B. 点在空白处 -> 显示背景菜单
+            if(fileMenu) fileMenu.style.display = 'none';
+            
+            if(bgMenu) {
+                bgMenu.style.display = 'block';
+                // 防止菜单跑出屏幕
+                let left = e.pageX;
+                let top = e.pageY;
+                if(left + 200 > window.innerWidth) left = window.innerWidth - 200;
+                if(top + 150 > window.innerHeight) top = window.innerHeight - 150;
+                
+                bgMenu.style.left = left + 'px';
+                bgMenu.style.top = top + 'px';
+            }
+        }
+    });
+}
+// 3. 监听列表区域 (file-list) 空白处右键
+const fileListEl = document.getElementById('file-list');
+if (fileListEl) {
+    fileListEl.addEventListener('contextmenu', (e) => {
+        const item = e.target.closest('.file-item');
+        // 只有点在空白处才显示背景菜单
+        if (!item) {
+            e.preventDefault();
+            if(fileMenu) fileMenu.style.display = 'none';
+            if(bgMenu) {
+                bgMenu.style.display = 'block';
+                bgMenu.style.left = e.pageX + 'px';
+                bgMenu.style.top = e.pageY + 'px';
+            }
+        }
+    });
+}
+
+        // --- 修正后的智能右键：使用“捕获模式”防止信号被拦截 ---
+        let rightClickStartX = 0, rightClickStartY = 0;
+        const cvsContainer = document.getElementById('canvas-container');
+        // 1. 监听按下（⚠️ 注意最后那个 true，这是修复的关键！）
+        // 使用 pointerdown 兼容性更好
+        cvsContainer.addEventListener('pointerdown', (e) => {
+            if(e.button === 2) {
+                rightClickStartX = e.clientX;
+                rightClickStartY = e.clientY;
+            }
+        }, true); // <--- 这个 true 强制让代码先运行，不被 3D 控件拦截
+        // 2. 监听右键弹起
+        cvsContainer.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            
+            // 计算移动距离
+            const dx = Math.abs(e.clientX - rightClickStartX);
+            const dy = Math.abs(e.clientY - rightClickStartY);
+            // 调试用：如果控制台打印出的 dx 很大（比如几百），说明起点没记录上
+            // console.log("移动距离:", dx, dy);
+            // 容差设为 5 像素（防抖）
+            if(dx > 5 || dy > 5) return;
+            // 只有原地点击才弹出菜单
+            fileMenu.style.display = 'none';
+            canvasMenu.style.display = 'block';
+            canvasMenu.style.left = e.pageX + 'px';
+            canvasMenu.style.top = e.pageY + 'px';
+        });
+
+        document.addEventListener('click', () => {
+            fileMenu.style.display = 'none';
+            canvasMenu.style.display = 'none';
+        });
+
+        function manualSnapshot() {
+            if (ctxTargetIndex === -1 || !currentModel) return;
+            renderer.render(scene, camera);
+            const canvas = renderer.domElement;
+            const size = Math.min(canvas.width, canvas.height);
+            const tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = 128; tmpCanvas.height = 128;
+            const ctx = tmpCanvas.getContext('2d');
+            ctx.drawImage(canvas, (canvas.width - size)/2, (canvas.height - size)/2, size, size, 0, 0, 128, 128);
+            const base64 = tmpCanvas.toDataURL("image/png");
+            const imgId = 'thumb-' + ctxTargetIndex;
+            const imgEl = document.getElementById(imgId);
+            if(imgEl) {
+                imgEl.src = base64;
+                imgEl.style.objectFit = 'contain';
+                imgEl.parentElement.style.border = '2px solid #0f0';
+                setTimeout(()=> imgEl.parentElement.style.border = '', 1500);
+            }
+            const fileItem = currentDisplayList[ctxTargetIndex];
+            thumbnailCache.set(fileItem.relativePath, base64);
+            let savePath = fileItem.fullPath;
+            if(!savePath && isElectron && currentBasePath) {
+                savePath = path.join(currentBasePath, fileItem.relativePath);
+            }
+            if(isElectron && savePath) {
+                ipcRenderer.invoke('save-thumbnail', savePath, fileItem.date, base64);
+            }
+        }
+
+        function forceRegenerate() {
+            if(ctxTargetIndex !== -1) {
+                const item = currentDisplayList[ctxTargetIndex];
+                thumbQueue.unshift({ item: item, id: 'thumb-' + ctxTargetIndex });
+                if(!isThumbProcessing) processThumbQueue();
+            }
+        }
+
+        let isDarkBg = true;
+        function toggleBgColor() {
+            isDarkBg = !isDarkBg;
+            const col = isDarkBg ? 0x404040 : 0xa0a0a0; 
+            scene.background = new THREE.Color(col);
+            document.getElementById('model-stats').style.color = isDarkBg ? '#e0e0e0' : '#333';
+            renderFrame();
+        }
+
+        function toggleGrid() {
+            const grid = scene.children.find(c => c.type === 'GridHelper');
+            if(grid) grid.visible = !grid.visible;
+            renderFrame();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 1. 🟢 修复：驱动补间动画 (让 T/F/L/R/P 和 ViewCube 点击生效)
+            if (window.TWEEN) TWEEN.update();
+            // 2. 🟢 修复：更新 ViewCube (让左上角小方块跟随旋转)
+            if (viewCube) viewCube.update();
+            controls.update();
+            // --- UV 流动逻辑 ---
+            if (isUVMode && matUV && matUV.map) {
+                const flowU = document.getElementById('flowU_val');
+                const flowV = document.getElementById('flowV_val');
+                if (flowU && flowV) {
+                    const uVal = parseFloat(flowU.value) || 0;
+                    const vVal = parseFloat(flowV.value) || 0;
+                    if (uVal !== 0) matUV.map.offset.x += (uVal / 100.0);
+                    if (vVal !== 0) matUV.map.offset.y += (vVal / 100.0);
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        function regenerateAllThumbnails() {
+    if(!confirm("确定要重新生成当前列表的所有缩略图吗？\n这可能需要一些时间。")) return;
+    
+    // 清空现有队列，防止堵塞
+    thumbQueue = [];
+    isThumbProcessing = false;
+    
+    // 把所有文件全部加入队列
+    currentDisplayList.forEach((item, index) => {
+        // 给个视觉反馈，把格子变暗
+        const imgEl = document.getElementById('thumb-' + index);
+        if(imgEl) imgEl.style.opacity = '0.3';
+        
+        thumbQueue.push({ item: item, id: 'thumb-' + index });
+    });
+    
+    processThumbQueue();
+}
+
+let autoFixQueue = [];
+let isAutoFixing = false;
+// 入口函数：点击菜单“智能修复”时调用
+async function smartFixThumbnails() {
+    const loading = document.getElementById('loading-overlay');
+    loading.style.display = 'flex';
+    loading.innerText = "正在扫描异常缩略图...";
+    
+    // 1. 扫描坏图
+    let badItems = [];
+    const canvas = document.createElement('canvas');
+    canvas.width = 32; canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    
+    for (let i = 0; i < currentDisplayList.length; i++) {
+        const item = currentDisplayList[i];
+        const cachedBase64 = thumbnailCache.get(item.relativePath);
+        
+        let isBad = false;
+        if (!cachedBase64) isBad = true; // 没图算坏
+        else isBad = await checkImageIsBad(ctx, cachedBase64); // 有图检测是否黑屏
+        
+        if (isBad) {
+            badItems.push({ item: item, index: i });
+            // 视觉标记
+            const el = document.getElementById('thumb-' + i);
+            if(el) el.style.opacity = '0.2'; 
+        }
+    }
+    if (badItems.length === 0) {
+        loading.style.display = 'none';
+        alert("未发现需要修复的缩略图。");
+        return;
+    }
+    // 2. 确认开始
+    if(!confirm(`发现 ${badItems.length} 个异常文件。\n\n程序将依次加载它们到主窗口并截图。\n【请双手离开鼠标，不要操作！】`)) {
+        loading.style.display = 'none';
+        return;
+    }
+    autoFixQueue = badItems;
+    isAutoFixing = true;
+    loading.style.display = 'flex'; 
+    
+    // 开始处理队列
+    processNextInFixQueue();
+}
+// 队列处理器
+// --- 极速版队列处理器 (替换原有的 processNextInFixQueue) ---
+function processNextInFixQueue() {
+    // 1. 检查队列是否为空
+    if (autoFixQueue.length === 0) {
+        isAutoFixing = false;
+        document.getElementById('loading-overlay').style.display = 'none';
+        
+        // 强制刷新一下列表，确保图片最新
+        if(isGridView) {
+            const grid = document.getElementById('file-grid');
+            grid.style.display = 'none';
+            setTimeout(() => grid.style.display = 'grid', 10);
+        }
+        
+        alert("修复完成！所有缩略图已更新。");
+        return;
+    }
+    const task = autoFixQueue.shift();
+    const item = task.item;
+    const index = task.index;
+    // 2. 更新UI提示
+    const loading = document.getElementById('loading-overlay');
+    loading.innerText = `正在极速修复: ${item.name}\n剩余: ${autoFixQueue.length} 个`;
+    // 3. 触发加载
+    // 这一步会调用全局的 loadModel
+    selectFile(item, index, null); 
+    
+    // UI 高亮格子 (视觉反馈)
+    const gridItems = document.getElementById('file-grid').children;
+    // 为了速度，只在每处理10个文件时清除一次高亮，避免频繁DOM操作拖慢速度
+    if (index % 10 === 0) {
+        Array.from(gridItems).forEach(g => g.classList.remove('active'));
+    }
+    if(gridItems[index]) gridItems[index].classList.add('active');
+    // 4. 极速轮询 (从 200ms 缩短到 30ms)
+    let waitCount = 0;
+    const checkInterval = setInterval(() => {
+        waitCount++;
+        
+        // 检查加载状态：索引对上了 且 currentModel 对象存在
+        if (currentSelectedIndex === index && currentModel) {
+            clearInterval(checkInterval);
+            
+            // --- 核心加速点 ---
+            // 之前是 setTimeout(..., 600)，现在改为等待两帧画面
+            // 这样既能保证显卡把图画出来，又不用浪费时间等待
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    performAutoSnapshot(item, index);
+                });
+            });
+        }
+        
+        // 超时保护 (5秒没加载出来就跳过，防止卡死)
+        if (waitCount > 150) { 
+            clearInterval(checkInterval);
+            console.warn("加载超时，跳过:", item.name);
+            processNextInFixQueue();
+        }
+    }, 30); // 30毫秒检查一次，反应更快
+}
+// 执行截图 (模拟手动按钮)
+        function performAutoSnapshot(item, index) {
+            // 1. 摆正相机 (ISO 视角)
+            if(controls) controls.reset();
+            
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const size = box.getSize(new THREE.Vector3()).length();
+            const center = box.getCenter(new THREE.Vector3());
+            camera.position.copy(center);
+            camera.position.x += size * 0.8;
+            camera.position.y += size * 0.5;
+            camera.position.z += size * 0.8;
+            camera.lookAt(center);
+            
+            if(controls) {
+                controls.target.copy(center);
+                controls.update();
+            }
+            // 🟢 2. 临时隐藏网格 (GridHelper)
+            let gridWasVisible = false;
+            // 在场景中寻找 GridHelper
+            const gridObj = scene.children.find(c => c.type === 'GridHelper');
+            if (gridObj) {
+                gridWasVisible = gridObj.visible; // 记住它原本是不是开着的
+                gridObj.visible = false;          // 截图前关掉
+            }
+            // 3. 强制渲染主画面
+            renderer.render(scene, camera);
+            
+            // 🟢 4. 恢复网格状态
+            if (gridObj) {
+                gridObj.visible = gridWasVisible; // 还原回去
+            }
+            // 5. 截取主 Canvas
+            const canvas = renderer.domElement;
+            // 截取中间正方形
+            const minSize = Math.min(canvas.width, canvas.height);
+            const tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = 128; tmpCanvas.height = 128;
+            const ctx = tmpCanvas.getContext('2d');
+            
+            ctx.drawImage(canvas, 
+                (canvas.width - minSize)/2, (canvas.height - minSize)/2, minSize, minSize, 
+                0, 0, 128, 128
+            );
+            
+            const base64 = tmpCanvas.toDataURL("image/png");
+            // 6. 更新界面和缓存
+            const imgEl = document.getElementById('thumb-' + index);
+            if(imgEl) {
+                imgEl.src = base64;
+                imgEl.style.opacity = '1';
+            }
+            thumbnailCache.set(item.relativePath, base64);
+            // 7. 保存
+            if(isElectron && item.fullPath) {
+                ipcRenderer.invoke('save-thumbnail', item.fullPath, item.date, base64);
+            }
+            // 8. 下一个
+            processNextInFixQueue();
+        }
+// 辅助：坏图检测
+function checkImageIsBad(ctx, base64) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            // 1. 画到画布上进行分析
+            ctx.clearRect(0,0,32,32);
+            ctx.drawImage(img, 0, 0, 32, 32);
+            const data = ctx.getImageData(0, 0, 32, 32).data;
+            
+            let totalLuma = 0;
+            let validPixels = 0;
+            let minBri = 255, maxBri = 0;
+            // 2. 遍历像素 (步长为4，即 RGBA)
+            for(let i=0; i<data.length; i+=4) {
+                const r = data[i];
+                const g = data[i+1];
+                const b = data[i+2];
+                const a = data[i+3];
+                // 忽略完全透明的像素
+                if (a < 20) continue;
+                // 计算当前像素亮度
+                const luma = 0.299*r + 0.587*g + 0.114*b;
+                totalLuma += luma;
+                validPixels++;
+                // 记录最亮和最暗的点，用来判断画面是否“太平了”
+                if(luma < minBri) minBri = luma;
+                if(luma > maxBri) maxBri = luma;
+            }
+            // 情况 A: 图片几乎全是透明的 -> 坏图
+            if (validPixels < 10) { resolve(true); return; }
+            // 计算平均亮度
+            const avg = totalLuma / validPixels;
+            // 情况 B: 整体太暗 (阈值从 10 提高到 50，能识别深灰色坏图)
+            if (avg < 50) { resolve(true); return; }
+            // 情况 C: 画面没有对比度 (纯色方块) -> 坏图
+            // 正常的模型截图一定有阴影和高光，亮度差通常大于 20
+            // 如果最亮和最暗差别极小，说明是渲染挂了的纯色屏
+            if ((maxBri - minBri) < 15) { resolve(true); return; }
+            // 通过检测
+            resolve(false);
+        };
+        img.onerror = () => resolve(true); // 加载失败也算坏图
+        img.src = base64;
+    });
+}
+
+
+// --- 新增：网格系统控制 ---
+function initGridSystem() {
+    // 初始加载一次默认网格
+    changeGridSystem();
+}
+function changeGridSystem() {
+    const selector = document.getElementById('grid-size-select');
+    if (!selector) return; // 防止报错
+    
+    const val = selector.value;
+    const info = document.getElementById('grid-info-display');
+    
+    // 如果旧网格存在，先从场景移除并销毁
+    if (gridHelper) {
+        scene.remove(gridHelper);
+        if (gridHelper.geometry) gridHelper.geometry.dispose();
+    }
+    let size, divisions, text;
+    // Three.js 的单位：1 unit = 1 cm (FBX 常见比例)
+    if (val === 'small') {
+        // 500x500cm, 50格 -> 每格 10cm
+        size = 500; 
+        divisions = 50;
+        text = "5m × 5m (每格 10cm)";
+    } else if (val === 'medium') {
+        // 5000x5000cm, 50格 -> 每格 100cm (1m)
+        size = 5000;
+        divisions = 50;
+        text = "50m × 50m (每格 1m)";
+    } else if (val === 'large') {
+        // 50000x50000cm, 50格 -> 每格 1000cm (10m)
+        size = 50000;
+        divisions = 50;
+        text = "500m × 500m (每格 10m)";
+    }
+    // 创建新网格 (颜色1:中心线深灰, 颜色2:网格线更深灰)
+    gridHelper = new THREE.GridHelper(size, divisions, 0x888888, 0x333333);
+    // 稍微抬高一点点，防止和地面模型重叠闪烁
+    gridHelper.position.y = 0.1; 
+    scene.add(gridHelper);
+    
+    if(info) info.innerText = text;
+    renderFrame(); // 刷新画面
+}
+// 2. Max 风格 UV 更新逻辑
+function updateUVMax() {
+    if (!matUV || !matUV.map) return;
+    
+    const tileU = parseFloat(document.getElementById('tileU').value) || 1;
+    const tileV = parseFloat(document.getElementById('tileV').value) || 1;
+    const offU = parseFloat(document.getElementById('offU').value) || 0;
+    const offV = parseFloat(document.getElementById('offV').value) || 0;
+    matUV.map.repeat.set(tileU, tileV);
+    matUV.map.offset.set(offU, offV);
+    matUV.needsUpdate = true;
+    renderFrame();
+}
+function updateUVWrap() {
+    if (!matUV || !matUV.map) return;
+    
+    const wrapU = document.getElementById('wrapU').checked;
+    const wrapV = document.getElementById('wrapV').checked;
+    
+    // RepeatWrapping = 重复, ClampToEdgeWrapping = 不重复(拉伸边缘)
+    matUV.map.wrapS = wrapU ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping;
+    matUV.map.wrapT = wrapV ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping;
+    matUV.map.needsUpdate = true;
+    renderFrame();
+}
+function resetUVMax() {
+            // 1. 重置 平铺 (默认为 1)
+            document.getElementById('tileU').value = 1;
+            document.getElementById('tileV').value = 1;
+            // 2. 重置 偏移 (默认为 0)
+            document.getElementById('offU').value = 0;
+            document.getElementById('offV').value = 0;
+            
+            // 3. 🟢 重置 流动 (核心修复：针对新的 ID)
+            // 必须设为 0，否则重置后还会继续动
+            if(document.getElementById('flowU_val')) document.getElementById('flowU_val').value = 0;
+            if(document.getElementById('flowV_val')) document.getElementById('flowV_val').value = 0;
+            
+            // 4. 重置 循环 (默认为勾选)
+            if(document.getElementById('wrapU')) document.getElementById('wrapU').checked = true;
+            if(document.getElementById('wrapV')) document.getElementById('wrapV').checked = true;
+            
+            // 5. 立即刷新画面
+            updateUVMax();
+            updateUVWrap();
+        }
+
+// --- 新增：数值拖拽功能 (仿 Max 实体操作) ---
+        function initDraggableInputs() {
+            // 封装一个通用的拖拽绑定函数
+            // spanId: 点击的标签ID, inputId: 控制的输入框ID, step: 鼠标每移动1像素变化的数值
+            const setupDrag = (spanId, inputId, step) => {
+                const span = document.getElementById(spanId);
+                const input = document.getElementById(inputId);
+                if (!span || !input) return;
+                let startX = 0;
+                let startVal = 0;
+                const onMove = (e) => {
+                    const deltaX = e.clientX - startX;
+                    // 计算新数值
+                    let newVal = startVal + (deltaX * step);
+                    // 保留3位小数，避免 0.100000002 这种情况
+                    newVal = Math.round(newVal * 1000) / 1000;
+                    
+                    input.value = newVal;
+                    updateUVMax(); // 实时触发 UV 更新
+                };
+                const onUp = () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    document.body.classList.remove('is-dragging'); // 恢复鼠标样式
+                };
+                span.addEventListener('mousedown', (e) => {
+                    e.preventDefault(); // 防止选中文字
+                    startX = e.clientX;
+                    startVal = parseFloat(input.value) || 0;
+                    
+                    document.body.classList.add('is-dragging'); // 强制鼠标变为左右箭头
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                });
+            };
+            // 绑定四个参数
+            // 平铺灵敏度设为 0.05 (动得快一点)，偏移设为 0.01 (动得慢一点)
+            setupDrag('lbl-tileU', 'tileU', 0.05);
+            setupDrag('lbl-tileV', 'tileV', 0.05);
+            setupDrag('lbl-offU',  'offU',  0.01);
+            setupDrag('lbl-offV',  'offV',  0.01);
+            setupDrag('lbl-flowU', 'flowU_val', 0.05);
+            setupDrag('lbl-flowV', 'flowV_val', 0.05);
+        }
+
+        // --- 🟢 新增：点击按钮后强制失去焦点，防止空格/回车重复触发 ---
+        document.addEventListener('mouseup', (e) => {
+            const btn = e.target.closest('button'); // 找到被点击的按钮
+            if(btn) {
+                btn.blur(); // 让它失去焦点
+            }
+        });
+
+
+// =========================================================
+    // 🟢 修复：全局视图切换函数
+    // =========================================================
+     function switchView(name) {
+        if(!controls) return;
+        
+        // 1. 确定目标中心和观察距离
+        let t = new THREE.Vector3(0, 0, 0);
+        let dist = 1000; // 默认距离
+        // 如果有模型，就以模型为中心
+        if(currentModel) {
+            t = controls.target.clone();
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const size = box.getSize(new THREE.Vector3()).length();
+            if(size > 0) {
+                dist = size * 1.5;
+                if(dist < 10) dist = 50; // 防止距离过近
+            }
+        }
+        // 2. 计算相机新位置
+        const pos = new THREE.Vector3();
+        const newUp = new THREE.Vector3(0, 1, 0); 
+        if(name === 'top') { pos.set(0, dist, 0); newUp.set(0, 0, -1); } 
+        else if(name === 'front') { pos.set(0, 0, dist); } 
+        else if(name === 'left') { pos.set(-dist, 0, 0); } 
+        else if(name === 'right') { pos.set(dist, 0, 0); } 
+        else if(name === 'perspective') { 
+            const d = dist / Math.sqrt(3); 
+            pos.set(d, d, d); 
+        }
+        
+        pos.add(t);
+        // 3. 执行动画
+        // 即使没有 TWEEN 库，也要能直接切换
+        if(window.TWEEN) {
+            new TWEEN.Tween(camera.position).to(pos, 400).easing(TWEEN.Easing.Quadratic.Out).start();
+            new TWEEN.Tween(camera.up).to(newUp, 400).start();
+        } else {
+            camera.position.copy(pos);
+            camera.up.copy(newUp);
+        }
+        
+        controls.target.copy(t);
+        camera.lookAt(t);
+    }
+    // =========================================================
+    // 🟢 最终修复：全局按键监听 (修复 G 键变量引用)
+    // =========================================================
+    window.addEventListener('keydown', (e) => {
+        const tag = e.target.tagName;
+        // 如果正在输入文字，不触发快捷键
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        const k = e.key.toLowerCase();
+        
+        // --- 视图切换 ---
+        if(k === 't') switchView('top');
+        if(k === 'f') switchView('front');
+        if(k === 'l') switchView('left');
+        if(k === 'r') switchView('right');
+        if(k === 'p') switchView('perspective');
+        
+        // --- 聚焦 (Z) ---
+        if(k === 'z') {
+            if(typeof fitCamera === 'function') fitCamera();
+        }
+        // --- 网格开关 (G) ---
+        // 🔴 修复点：这里直接访问 gridHelper 变量，不要加 window.
+        if(k === 'g') { 
+            // 检查 gridHelper 变量是否存在且已初始化
+            if(typeof gridHelper !== 'undefined' && gridHelper) {
+                gridHelper.visible = !gridHelper.visible;
+                // 强制重绘一帧，确保立即看到效果
+                if(renderer && scene && camera) renderer.render(scene, camera);
+            }
+        }
+        // --- F3 / F4 模式 ---
+        if (e.key === 'F3') {
+            e.preventDefault();
+            if(typeof toggleF3Mode === 'function') toggleF3Mode();
+        }
+        if (e.key === 'F4') {
+            e.preventDefault();
+            // 手动执行切换逻辑，防止函数未定义
+            isEdgedFaces = !isEdgedFaces;
+            if (isPureWireframe && isEdgedFaces) isPureWireframe = false;
+            if(typeof updateMaterialState === 'function') updateMaterialState();
+        }
+        if (e.code === 'Space' || e.key === ' ') {
+                e.preventDefault(); // 这一句很重要，防止网页滚动
+                resetCamera();
+        }
+        // --- 方向键切文件 ---
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            e.preventDefault();
+            if (!currentDisplayList || currentDisplayList.length === 0) return;
+            if (currentSelectedIndex === -1) { selectFileByIndex(0); return; }
+            
+            let nextIndex = currentSelectedIndex;
+            if (!isGridView) {
+                if (e.key === 'ArrowDown') nextIndex++;
+                if (e.key === 'ArrowUp') nextIndex--;
+            } else {
+                const gridEl = document.getElementById('file-grid');
+                if (gridEl) {
+                    const itemWidth = 112; 
+                    const cols = Math.floor(gridEl.clientWidth / itemWidth) || 1;
+                    if (e.key === 'ArrowRight') nextIndex++;
+                    if (e.key === 'ArrowLeft') nextIndex--;
+                    if (e.key === 'ArrowDown') nextIndex += cols;
+                    if (e.key === 'ArrowUp') nextIndex -= cols;
+                }
+            }
+            if (nextIndex < 0) nextIndex = 0;
+            if (nextIndex >= currentDisplayList.length) nextIndex = currentDisplayList.length - 1;
+            
+            if (nextIndex !== currentSelectedIndex) { 
+                selectFileByIndex(nextIndex); 
+            }
+        }
+        
+        // --- Max 模式 Alt 键 ---
+        if ((e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight') && currentNavMode === 'max') {
+            e.preventDefault(); 
+            if(controls) {
+                controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
+                controls.update(); 
+            }
+        }
+    });
+    // 监听 Alt 键松开
+    window.addEventListener('keyup', (e) => {
+        if((e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight') && currentNavMode === 'max') {
+            if(controls) {
+                controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
+                controls.update();
+            }
+        }
+    });
+
+    </script>
+    
+</body>
+</html>
