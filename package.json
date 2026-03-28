@@ -1,6 +1,6 @@
 {
   "name": "fbx-quick-viewer",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "3D FBX Viewer",
   "main": "main.js",
   "scripts": {
