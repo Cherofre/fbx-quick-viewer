@@ -45,30 +45,44 @@ npm run pack
 npm run dist
 ```
 
-默认会使用 `electron-builder` 构建 Windows 安装包与便携版程序。
+发布前脚本会自动：
+
+- 检查 `package.json` 与 `package-lock.json` 版本是否一致
+- 检查 `README.md` 中记录的当前版本是否一致
+- 清理旧的 `dist` 目录，避免新旧安装包混在一起
 
 ## 项目结构
 
 ```text
 .
-├─ index.html        # 主界面与渲染层逻辑
-├─ main.js           # Electron 主进程
-├─ libs/             # Three.js 及相关加载器
-├─ icon.png          # 应用图标
-├─ package.json      # 项目配置与脚本
-└─ 打包.txt          # 简单打包说明
+├─ index.html                 # 主界面结构
+├─ styles.css                 # 主界面样式
+├─ renderer.js                # 渲染层逻辑
+├─ preload.js                 # 受限的 Electron 桥接层
+├─ main.js                    # Electron 主进程
+├─ libs/                      # Three.js 及相关加载器
+├─ scripts/prepare-dist.js    # 发布前检查与清理脚本
+├─ icon.png                   # 应用图标
+├─ package.json               # 项目配置与脚本
+└─ 打包.txt                   # 简单打包说明
 ```
 
 ## 使用说明
 
-1. 启动程序后点击“打开文件夹”。
-2. 选择包含 `.fbx` 文件的目录。
-3. 在左侧列表或缩略图中选择模型。
-4. 在右侧查看模型，并使用显示模式、相机工具和 UV 工具辅助检查。
+1. 启动程序后点击“打开文件夹”
+2. 选择包含 `.fbx` 文件的目录
+3. 在左侧列表或缩略图中选择模型
+4. 在右侧查看模型，并使用显示模式、相机工具和 UV 工具辅助检查
 
 ## 数据与缓存
 
-程序会在运行目录附近创建 `FBX_Data` 文件夹，用于保存：
+程序会根据运行方式使用不同的数据目录：
+
+- 便携版：写入程序所在目录下的 `FBX_Data`
+- 安装版：写入系统用户数据目录
+- 开发模式：写入项目目录下的 `FBX_Data`
+
+目录中会保存：
 
 - 收藏数据
 - 缩略图缓存
@@ -76,12 +90,13 @@ npm run dist
 
 ## 发布信息
 
-当前版本：`v1.0.0`
+当前版本：`v1.0.2`
 
 建议发布产物：
 
-- 安装版：`fbx-quick-viewer Setup 1.0.0.exe`
-- 便携版：`fbx-quick-viewer 1.0.0.exe`
+- 安装版：`fbx-quick-viewer Setup 1.0.2.exe`
+- 便携版：`fbx-quick-viewer 1.0.2.exe`
+- 自动更新元数据：`latest.yml`
 
 ## 许可证
 
