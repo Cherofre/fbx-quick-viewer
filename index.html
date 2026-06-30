@@ -459,6 +459,16 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+        .uv-badge {
+            margin-left: 6px;
+            padding: 1px 4px;
+            border: 1px solid #555;
+            border-radius: 2px;
+            color: #4fc1ff;
+            font-size: 10px;
+            line-height: 1;
+            flex: 0 0 auto;
+        }
         .fav-icon {
             cursor: pointer;
             font-size: 16px;
@@ -589,6 +599,7 @@
                 <div class="header-top-row">
                     <span>当前目录: <span id="dir-name">未选择</span></span>
                     <div class="header-actions" style="display:flex; gap:5px;">
+                        <button id="check-update-btn" class="icon-btn-ghost" onclick="checkForUpdates(true)" title="检查更新" style="background:transparent;border:none;color:#888;cursor:pointer;">⬆</button>
                         <button id="history-btn" class="icon-btn-ghost" onclick="toggleHistory()" title="最近历史记录" style="background:transparent;border:none;color:#888;cursor:pointer;">🕒</button>
                         <button id="refresh-dir-btn" onclick="refreshCurrentDirectory()" title="重新索引当前目录" style="background:transparent;border:none;color:#888;cursor:pointer;">↻</button>
                     </div>
@@ -706,8 +717,14 @@
 
                 <!-- UV 控制面板 -->
                 <div id="uv-control-panel">
-                    <div style="font-size:10px; color:#666; margin-bottom:6px; text-align:center; border-bottom:1px solid #444; padding-bottom:4px;">
+                <div style="font-size:10px; color:#666; margin-bottom:6px; text-align:center; border-bottom:1px solid #444; padding-bottom:4px;">
                         拖入图片替换贴图
+                    </div>
+                    <div class="max-row" style="margin-bottom: 8px;">
+                        <span>UV 通道</span>
+                        <select id="uv-channel-select" class="compact-select" onchange="setActiveUVChannel(this.value)" style="margin-bottom:0;">
+                            <option value="uv">UV1</option>
+                        </select>
                     </div>
                     <!-- 平铺 (Tiling) -->
                     <div class="max-row">
@@ -804,6 +821,10 @@
             <div class="hud-row">
                 <div>三角面:</div>
                 <span id="stat-tris">0</span>
+            </div>
+            <div class="hud-row">
+                <div>UV:</div>
+                <span id="stat-uv">未检测</span>
             </div>
         </div>
 
@@ -1053,8 +1074,9 @@
                 this.ctx.strokeStyle = '#00ff00'; this.ctx.lineWidth = 1; this.ctx.globalAlpha = 0.6; this.ctx.fillStyle = '#00ff00';
                 this.ctx.beginPath();
                 this.currentModel.traverse(child => {
-                    if (child.isMesh && child.geometry && child.geometry.attributes.uv) {
-                        const uvs = child.geometry.attributes.uv;
+                    if (child.isMesh && child.geometry) {
+                        const uvs = getGeometryUVAttribute(child.geometry, activeUVChannelName);
+                        if (!uvs) return;
                         const count = uvs.count; const index = child.geometry.index;
                         if (drawMode === MODE_POINTS) {
                             for (let i = 0; i < count; i++) {
@@ -1089,6 +1111,10 @@
         let currentFullFilePath = ""; 
         let currentBasePath = ""; // 补上遗漏的变量
         let favoriteSet = new Set(); // 先设为空，防止报错
+        let activeUVChannelName = 'uv';
+        let currentUVChannels = [];
+        let modelUVMetadata = new Map();
+        let previewUVGeometries = new Map();
         async function loadFavoritesData() {
             if (isElectron) {
                 try {
@@ -1287,6 +1313,7 @@
                 // 1. 生成 HTML (注意：这里把 onclick 删掉了，加上了 id 用于定位，或者直接用类名)
                 div.innerHTML = `
                     <span class="file-name-span">${item.isTemporary ? '[临时] ' : ''}${item.name}</span>
+                    ${renderUVBadge(item)}
                     ${item.isTemporary ? '' : `<span class="fav-icon ${favClass}">★</span>`}
                 `;
                 // 2. 🟢 关键修复：使用 JS 直接绑定点击事件，完美避开所有转义字符问题
@@ -1325,7 +1352,7 @@
                     favBtn.onclick = (e) => toggleFavorite(e, item.relativePath);
                     const img = document.createElement('img'); img.className='thumb-img'; img.id='thumb-'+index; img.dataset.relativePath = item.relativePath;
                     img.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDUwIDUwIj48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZHk9Ii4zZW0iIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM1NTUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjgiPkZCWDwvdGV4dD48L3N2Zz4=';
-                    const nm = document.createElement('div'); nm.className='thumb-name'; nm.innerText=item.name; nm.title=item.name;
+                    const nm = document.createElement('div'); nm.className='thumb-name'; nm.innerHTML = `${item.name}${renderUVBadge(item)}`; nm.title=item.name;
                     
                     gi.append(favBtn, img, nm); // 把星星也加进去
                     
@@ -1367,6 +1394,150 @@
 
         function getThumbnailBatchLimit(totalCount) {
             return Math.min(totalCount, THUMBNAIL_AUTO_GENERATE_LIMIT);
+        }
+
+        function getUVChannelLabel(channelName) {
+            if (channelName === 'uv') return 'UV1';
+            const match = String(channelName).match(/^uv(\d+)$/i);
+            return match ? `UV${match[1]}` : channelName.toUpperCase();
+        }
+
+        function getUVChannelOrder(channelName) {
+            if (channelName === 'uv') return 1;
+            const match = String(channelName).match(/^uv(\d+)$/i);
+            return match ? Number(match[1]) : 999;
+        }
+
+        function getGeometryUVAttribute(geometry, channelName) {
+            if (!geometry || !geometry.attributes) return null;
+            return geometry.attributes[channelName] || null;
+        }
+
+        function collectModelUVChannels(model) {
+            const channels = new Map();
+            let meshCount = 0;
+
+            if (!model) return [];
+            model.traverse(child => {
+                if (!child.isMesh || !child.geometry) return;
+                meshCount++;
+                Object.keys(child.geometry.attributes || {}).forEach(name => {
+                    if (name !== 'uv' && !/^uv\d+$/i.test(name)) return;
+                    const attr = child.geometry.attributes[name];
+                    if (!attr || !attr.count) return;
+                    if (!channels.has(name)) channels.set(name, { name, label: getUVChannelLabel(name), meshCount: 0, partial: false });
+                    channels.get(name).meshCount++;
+                });
+            });
+
+            return Array.from(channels.values())
+                .map(channel => ({ ...channel, partial: meshCount > 0 && channel.meshCount < meshCount }))
+                .sort((a, b) => getUVChannelOrder(a.name) - getUVChannelOrder(b.name));
+        }
+
+        function updateUVChannelOptions(model) {
+            currentUVChannels = collectModelUVChannels(model);
+            const select = document.getElementById('uv-channel-select');
+
+            if (!select) return currentUVChannels;
+            select.innerHTML = '';
+
+            if (currentUVChannels.length === 0) {
+                activeUVChannelName = 'uv';
+                select.disabled = true;
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.innerText = '无 UV';
+                select.appendChild(opt);
+                restorePreviewUVChannel();
+                return currentUVChannels;
+            }
+
+            select.disabled = false;
+            if (!currentUVChannels.some(channel => channel.name === activeUVChannelName)) {
+                activeUVChannelName = currentUVChannels[0].name;
+            }
+
+            currentUVChannels.forEach(channel => {
+                const opt = document.createElement('option');
+                opt.value = channel.name;
+                opt.innerText = channel.label + (channel.partial ? ' (部分)' : '');
+                select.appendChild(opt);
+            });
+            select.value = activeUVChannelName;
+            if (currentBaseType === 'uv') applyPreviewUVChannel(activeUVChannelName);
+            else restorePreviewUVChannel();
+            return currentUVChannels;
+        }
+
+        function setActiveUVChannel(channelName) {
+            if (!channelName || channelName === activeUVChannelName) return;
+            activeUVChannelName = channelName;
+            if (currentBaseType === 'uv') applyPreviewUVChannel(activeUVChannelName);
+            else restorePreviewUVChannel();
+            if (uvViewer) {
+                uvViewer.needsUpdate = true;
+                uvViewer.draw();
+            }
+            updateModelStats(currentModel);
+        }
+
+        function applyPreviewUVChannel(channelName) {
+            restorePreviewUVChannel();
+            if (!currentModel || channelName === 'uv') return;
+
+            currentModel.traverse(child => {
+                if (!child.isMesh || !child.geometry) return;
+                const selectedUV = getGeometryUVAttribute(child.geometry, channelName);
+                const originalUV = getGeometryUVAttribute(child.geometry, 'uv');
+                if (!selectedUV || !originalUV) return;
+                previewUVGeometries.set(child.geometry, originalUV);
+                child.geometry.setAttribute('uv', selectedUV);
+                child.geometry.attributes.uv.needsUpdate = true;
+            });
+        }
+
+        function restorePreviewUVChannel() {
+            previewUVGeometries.forEach((originalUV, geometry) => {
+                geometry.setAttribute('uv', originalUV);
+                geometry.attributes.uv.needsUpdate = true;
+            });
+            previewUVGeometries.clear();
+        }
+
+        function getUVMetadataKey(item) {
+            if (!item) return '';
+            return item.fullPath || item.relativePath || item.name || '';
+        }
+
+        function updateFileUVMetadata(item, channels) {
+            const key = getUVMetadataKey(item);
+            if (!key) return;
+            modelUVMetadata.set(key, channels);
+            if (item) item.uvChannels = channels;
+
+            const index = currentDisplayList.indexOf(item);
+            if (index < 0) return;
+            const badgeHtml = renderUVBadge(item);
+            const listItem = document.getElementById('file-list')?.children[index];
+            if (listItem) {
+                listItem.querySelectorAll('.uv-badge').forEach(el => el.remove());
+                const favIcon = listItem.querySelector('.fav-icon');
+                const template = document.createElement('span');
+                template.innerHTML = badgeHtml;
+                const badge = template.firstElementChild;
+                if (badge) listItem.insertBefore(badge, favIcon || null);
+            }
+            const gridItem = document.getElementById('file-grid')?.children[index];
+            const thumbName = gridItem ? gridItem.querySelector('.thumb-name') : null;
+            if (thumbName) thumbName.innerHTML = `${item.name}${badgeHtml}`;
+        }
+
+        function renderUVBadge(item) {
+            const channels = item && (item.uvChannels || modelUVMetadata.get(getUVMetadataKey(item)));
+            if (!channels || !channels.some(channel => getUVChannelOrder(channel.name) >= 2)) return '';
+            const second = channels.find(channel => getUVChannelOrder(channel.name) >= 2);
+            return `<span class="uv-badge">${second.label}${second.partial ? '*' : ''}</span>`;
         }
 
         function renderThumbnailPauseControls(totalCount) {
@@ -1813,10 +1984,51 @@
                     // 加载上次打开的文件夹
                     scanFiles(history[0]);
                 }
+                scheduleSilentUpdateCheck();
             }
         }
         // 执行启动
         initApp();
+
+        async function checkForUpdates(manual) {
+            if (!isElectron || !ipcRenderer) {
+                if (manual) alert("Web 模式不支持检查更新");
+                return;
+            }
+
+            const btn = document.getElementById('check-update-btn');
+            const originalText = btn ? btn.innerText : '';
+            if (manual && btn) btn.innerText = '...';
+
+            try {
+                const result = await ipcRenderer.invoke('check-for-updates');
+                if (!result.ok) {
+                    if (manual) alert(`检查更新失败：${result.error || '网络不可用'}`);
+                    return;
+                }
+
+                if (result.updateAvailable) {
+                    const message = `发现新版本 ${result.latestVersion}，当前版本 ${result.currentVersion}。\n是否打开下载页面？`;
+                    if (confirm(message) && result.releaseUrl) {
+                        await ipcRenderer.invoke('open-external-url', result.releaseUrl);
+                    }
+                } else if (manual) {
+                    alert(`当前已是最新版本：${result.currentVersion}`);
+                }
+            } finally {
+                if (manual && btn) btn.innerText = originalText;
+            }
+        }
+
+        function scheduleSilentUpdateCheck() {
+            const key = 'fbx_update_last_check';
+            const dayMs = 24 * 60 * 60 * 1000;
+            const lastCheck = Number(localStorage.getItem(key) || 0);
+            if (Date.now() - lastCheck < dayMs) return;
+
+            localStorage.setItem(key, String(Date.now()));
+            setTimeout(() => checkForUpdates(false), 3000);
+        }
 
         function loadConfig() {
             const savedWidth = localStorage.getItem('fbx_sidebar_width');
@@ -2095,11 +2307,16 @@
 
             loader.load(loadUrl, (object) => {
                 if (myLoadId !== loadSequenceId) return;
+                restorePreviewUVChannel();
                 if (currentModel) {
                     clearNormalsHelpers(); scene.remove(currentModel);
                     currentModel.traverse(child => { if(child.isMesh) { child.geometry.dispose(); if(Array.isArray(child.material)) child.material.forEach(m=>m.dispose()); else child.material.dispose(); } });
                 }
-                currentModel = object; updateModelStats(object); if (uvViewer && uvViewer.ctx) uvViewer.updateModel(object);
+                currentModel = object;
+                const uvChannels = updateUVChannelOptions(object);
+                updateFileUVMetadata(currentDisplayList[currentSelectedIndex], uvChannels);
+                updateModelStats(object);
+                if (uvViewer && uvViewer.ctx) uvViewer.updateModel(object);
                 applyModelTransform(object);
                 
                 // 🟢 自动调整网格大小
@@ -2133,6 +2350,11 @@
             }
             document.getElementById('stat-verts').innerText = verts.toLocaleString();
             document.getElementById('stat-tris').innerText = Math.floor(tris).toLocaleString();
+            const uvText = currentUVChannels.length
+                ? currentUVChannels.map(channel => channel.label + (channel.partial ? '*' : '')).join(', ') + ` / 当前 ${getUVChannelLabel(activeUVChannelName)}`
+                : '无 UV';
+            const uvStat = document.getElementById('stat-uv');
+            if (uvStat) uvStat.innerText = uvText;
         }
 
         function cleanWireframeOverlay() {
@@ -2209,6 +2431,8 @@
             const uvPanel = document.getElementById('uv-control-panel');
             if(uvPanel) uvPanel.style.display = (currentBaseType === 'uv') ? 'block' : 'none';
             isUVMode = (currentBaseType === 'uv');
+            if (isUVMode) applyPreviewUVChannel(activeUVChannelName);
+            else restorePreviewUVChannel();
             if (!currentModel) return;
             // --- B. 材质逻辑 ---
             let targetMat = matStandard;

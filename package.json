@@ -1,11 +1,11 @@
 {
   "name": "fbx-quick-viewer",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "3D FBX Viewer",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node tests/drag-drop-behavior.test.js",
+    "test": "node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },

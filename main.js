@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const https = require('https');
 
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 
@@ -143,6 +144,56 @@ function getCachePath(filePath, mtime) {
     };
 }
 
+function normalizeVersion(version) {
+    return String(version || '').trim().replace(/^v/i, '');
+}
+
+function compareVersions(a, b) {
+    const partsA = normalizeVersion(a).split('.').map(n => parseInt(n, 10) || 0);
+    const partsB = normalizeVersion(b).split('.').map(n => parseInt(n, 10) || 0);
+    const maxLength = Math.max(partsA.length, partsB.length);
+
+    for (let i = 0; i < maxLength; i++) {
+        const diff = (partsA[i] || 0) - (partsB[i] || 0);
+        if (diff !== 0) return diff > 0 ? 1 : -1;
+    }
+    return 0;
+}
+
+function fetchLatestRelease() {
+    const url = 'https://api.github.com/repos/Cherofre/fbx-quick-viewer/releases/latest';
+
+    return new Promise((resolve, reject) => {
+        const req = https.get(url, {
+            headers: {
+                'Accept': 'application/vnd.github+json',
+                'User-Agent': 'fbx-quick-viewer'
+            },
+            timeout: 10000
+        }, (res) => {
+            let body = '';
+            res.setEncoding('utf8');
+            res.on('data', chunk => { body += chunk; });
+            res.on('end', () => {
+                if (res.statusCode < 200 || res.statusCode >= 300) {
+                    reject(new Error(`GitHub release check failed: ${res.statusCode}`));
+                    return;
+                }
+                try {
+                    resolve(JSON.parse(body));
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        });
+
+        req.on('timeout', () => {
+            req.destroy(new Error('GitHub release check timed out'));
+        });
+        req.on('error', reject);
+    });
+}
+
 ipcMain.handle('load-favorites', async () => {
     try {
         // 🟢 改为 Data 目录
@@ -265,6 +316,41 @@ ipcMain.handle('save-thumbnail', async (event, filePath, mtime, dataUrl) => {
     } catch (e) { 
         console.error("Write Failed:", e); 
     }
+});
+
+ipcMain.handle('check-for-updates', async () => {
+    const currentVersion = app.getVersion();
+
+    try {
+        const release = await fetchLatestRelease();
+        const latestVersion = normalizeVersion(release.tag_name || release.name);
+
+        return {
+            ok: true,
+            currentVersion,
+            latestVersion,
+            updateAvailable: compareVersions(latestVersion, currentVersion) > 0,
+            releaseName: release.name || release.tag_name || latestVersion,
+            releaseUrl: release.html_url || '',
+            publishedAt: release.published_at || ''
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            currentVersion,
+            latestVersion: '',
+            updateAvailable: false,
+            releaseName: '',
+            releaseUrl: '',
+            error: error.message || String(error)
+        };
+    }
+});
+
+ipcMain.handle('open-external-url', async (event, url) => {
+    if (!/^https?:\/\//i.test(String(url || ''))) return false;
+    await shell.openExternal(url);
+    return true;
 });
 
 ipcMain.handle('open-folder-dialog', async () => {

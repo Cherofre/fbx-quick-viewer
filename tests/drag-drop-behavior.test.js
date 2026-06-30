@@ -14,8 +14,8 @@ function assertContains(source, text, label) {
     );
 }
 
-assert.strictEqual(packageJson.version, '1.0.3', 'package version should be bumped for the new release');
-assert.strictEqual(packageJson.scripts.test, 'node tests/drag-drop-behavior.test.js', 'npm test should run the drag/drop regression test');
+assert.strictEqual(packageJson.version, '1.0.4', 'package version should be bumped for the new release');
+assert.strictEqual(packageJson.scripts.test, 'node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js', 'npm test should run the regression suites');
 
 assertContains(mainJs, "ipcMain.handle('get-file-info'", 'main process');
 
