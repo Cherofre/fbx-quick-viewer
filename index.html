@@ -735,7 +735,7 @@
                 <div style="font-size:10px; color:#666; margin-bottom:6px; text-align:center; border-bottom:1px solid #444; padding-bottom:4px;">
                         拖入图片替换贴图
                     </div>
-                    <div class="max-row" style="margin-bottom: 8px;">
+                    <div id="uv-channel-row" class="max-row" style="margin-bottom: 8px;">
                         <span>UV 通道</span>
                         <select id="uv-channel-select" class="compact-select" onchange="setActiveUVChannel(this.value)" style="margin-bottom:0;">
                             <option value="uv">UV1</option>
@@ -1129,6 +1129,7 @@
         let activeUVChannelName = 'uv';
         let currentUVChannels = [];
         let modelUVMetadata = new Map();
+        let uvMetadataSaveTimer = null;
         let previewUVGeometries = new Map();
         async function loadFavoritesData() {
             if (isElectron) {
@@ -1145,6 +1146,133 @@
             } else {
                 favoriteSet = new Set(JSON.parse(localStorage.getItem('fbx_favorites') || '[]'));
             }
+        }
+
+        function normalizeUVMetadataKey(rawKey) {
+            return String(rawKey || '').replace(/\\/g, '/').toLowerCase();
+        }
+
+        function getItemMTime(item) {
+            const mtime = Number(item?.date ?? item?.mtime ?? item?.lastModified ?? 0);
+            return Number.isFinite(mtime) ? mtime : 0;
+        }
+
+        function normalizeUVChannelMetadata(channel) {
+            if (!channel || typeof channel !== 'object') return null;
+            const name = String(channel.name || '').trim();
+            if (!name) return null;
+            return {
+                name,
+                label: String(channel.label || getUVChannelLabel(name)).trim() || getUVChannelLabel(name),
+                meshCount: Number.isFinite(Number(channel.meshCount)) ? Number(channel.meshCount) : 0,
+                partial: !!channel.partial
+            };
+        }
+
+        function normalizeUVMetadataEntry(entry, item) {
+            if (Array.isArray(entry) && !item) return null;
+            const channelSource = Array.isArray(entry) ? entry : entry?.channels;
+            if (!Array.isArray(channelSource)) return null;
+
+            const itemMTime = getItemMTime(item);
+            const entryMTime = Array.isArray(entry) ? itemMTime : Number(entry.mtime);
+            if (!Number.isFinite(entryMTime)) return null;
+            if (itemMTime && entryMTime && Math.floor(itemMTime) !== Math.floor(entryMTime)) return null;
+
+            return {
+                status: 'detected',
+                mtime: entryMTime || itemMTime,
+                channels: channelSource.map(normalizeUVChannelMetadata).filter(Boolean),
+                updatedAt: entry?.updatedAt || new Date().toISOString()
+            };
+        }
+
+        function serializeUVMetadataCache() {
+            const cache = {};
+            modelUVMetadata.forEach((entry, key) => {
+                const normalized = normalizeUVMetadataEntry(entry, null);
+                if (normalized) cache[key] = normalized;
+            });
+            return cache;
+        }
+
+        async function loadUVMetadataCache() {
+            try {
+                const rawCache = isElectron
+                    ? await ipcRenderer.invoke('load-uv-metadata')
+                    : JSON.parse(localStorage.getItem('fbx_uv_metadata') || '{}');
+                const entries = rawCache && rawCache.entries && typeof rawCache.entries === 'object' ? rawCache.entries : rawCache;
+                modelUVMetadata = new Map();
+                Object.entries(entries || {}).forEach(([key, entry]) => {
+                    const normalized = normalizeUVMetadataEntry(entry, null);
+                    if (normalized) modelUVMetadata.set(normalizeUVMetadataKey(key), normalized);
+                });
+            } catch (e) {
+                console.error("加载 UV 元数据缓存出错:", e);
+                modelUVMetadata = new Map();
+            }
+        }
+
+        function saveUVMetadataCacheNow() {
+            const cache = serializeUVMetadataCache();
+            if (isElectron) {
+                ipcRenderer.invoke('save-uv-metadata', cache).catch(err => console.error("保存 UV 元数据缓存出错:", err));
+            } else {
+                localStorage.setItem('fbx_uv_metadata', JSON.stringify(cache));
+            }
+        }
+
+        function scheduleUVMetadataCacheSave() {
+            if (uvMetadataSaveTimer) clearTimeout(uvMetadataSaveTimer);
+            uvMetadataSaveTimer = setTimeout(() => {
+                uvMetadataSaveTimer = null;
+                saveUVMetadataCacheNow();
+            }, 300);
+        }
+
+        function hydrateItemUVMetadata(item) {
+            const key = getUVMetadataKey(item);
+            if (!key) return null;
+
+            const metadata = normalizeUVMetadataEntry(modelUVMetadata.get(key), item);
+            if (!metadata) {
+                if (item) {
+                    delete item.uvChannels;
+                    item.uvMetadataStatus = 'unknown';
+                }
+                return null;
+            }
+
+            modelUVMetadata.set(key, metadata);
+            if (item) {
+                item.uvChannels = metadata.channels;
+                item.uvMetadataStatus = metadata.status;
+            }
+            return metadata;
+        }
+
+        function writeUVMetadataCacheEntry(item, channels) {
+            const key = getUVMetadataKey(item);
+            if (!key) return null;
+
+            const metadata = {
+                status: 'detected',
+                mtime: getItemMTime(item),
+                channels: Array.isArray(channels) ? channels.map(normalizeUVChannelMetadata).filter(Boolean) : [],
+                updatedAt: new Date().toISOString()
+            };
+            modelUVMetadata.set(key, metadata);
+            if (item) {
+                item.uvChannels = metadata.channels;
+                item.uvMetadataStatus = metadata.status;
+            }
+            scheduleUVMetadataCacheSave();
+            return metadata;
+        }
+
+        function getItemUVChannels(item) {
+            const metadata = hydrateItemUVMetadata(item);
+            return metadata ? metadata.channels : null;
         }
         // 2. 定义应用程序主入口
         async function initApp() {
@@ -1460,6 +1588,7 @@
         function updateUVChannelOptions(model) {
             currentUVChannels = collectModelUVChannels(model);
             const select = document.getElementById('uv-channel-select');
+            updateUVChannelRowVisibility();
 
             if (!select) return currentUVChannels;
             select.innerHTML = '';
@@ -1490,6 +1619,12 @@
             if (currentBaseType === 'uv') applyPreviewUVChannel(activeUVChannelName);
             else restorePreviewUVChannel();
             return currentUVChannels;
+        }
+
+        function updateUVChannelRowVisibility() {
+            const row = document.getElementById('uv-channel-row');
+            if (!row) return;
+            row.style.display = currentUVChannels.length > 1 ? 'flex' : 'none';
         }
 
         function setActiveUVChannel(channelName) {
@@ -1529,14 +1664,11 @@
 
         function getUVMetadataKey(item) {
             if (!item) return '';
-            return item.fullPath || item.relativePath || item.name || '';
+            return normalizeUVMetadataKey(item.fullPath || item.relativePath || item.name || '');
         }
 
         function updateFileUVMetadata(item, channels) {
-            const key = getUVMetadataKey(item);
-            if (!key) return;
-            modelUVMetadata.set(key, channels);
-            if (item) item.uvChannels = channels;
+            writeUVMetadataCacheEntry(item, channels);
 
             const index = currentDisplayList.indexOf(item);
             if (index < 0) return;
@@ -1567,7 +1699,7 @@
         }
 
         function renderUVBadge(item, mode) {
-            const channels = item && (item.uvChannels || modelUVMetadata.get(getUVMetadataKey(item)));
+            const channels = getItemUVChannels(item);
             if (!channels || !channels.some(channel => getUVChannelOrder(channel.name) >= 2)) return '';
             const second = channels.find(channel => getUVChannelOrder(channel.name) >= 2);
             const className = mode === 'grid' ? 'grid-uv-badge' : 'uv-badge';
@@ -1855,7 +1987,9 @@
             Array.from(files).forEach(file => {
                 if (file.name.toLowerCase().endsWith('.fbx')) {
                     const relativePath = file.webkitRelativePath || file.name;
-                    allFilesData.push({ name: file.name, relativePath: relativePath, date: file.lastModified, rawFile: file });
+                    const item = { name: file.name, relativePath: relativePath, date: file.lastModified, rawFile: file };
+                    hydrateItemUVMetadata(item);
+                    allFilesData.push(item);
                     fbxCount++;
                 }
             });
@@ -1881,8 +2015,11 @@
             document.getElementById('dir-name').innerText = currentBasePath.split(path.sep).pop() || "Root";
             document.getElementById('file-count').innerText = result.files.length;
             allFilesData = result.files.map(f => {
-                if (typeof f === 'string') { return { name: f, relativePath: f, date: 0 }; }
-                return { name: f.name, relativePath: f.relativePath, fullPath: f.fullPath, date: f.mtime };
+                const item = typeof f === 'string'
+                    ? { name: f, relativePath: f, date: 0 }
+                    : { name: f.name, relativePath: f.relativePath, fullPath: f.fullPath, date: f.mtime };
+                hydrateItemUVMetadata(item);
+                return item;
             });
             renderFileList();
         }
@@ -2011,6 +2148,7 @@
             // 2. 🟢 关键：等待收藏数据加载完毕！
             // 只有等它读完 JSON，favoriteSet 里才有数据，后面的 renderFileList 才能正确显示星星
             await loadFavoritesData();
+            await loadUVMetadataCache();
             // 3. 最后再加载文件列表
             if (isElectron && ipcRenderer) {
                 const history = JSON.parse(localStorage.getItem('fbx_hist') || '[]');
@@ -2276,6 +2414,7 @@
                 date: info.mtime,
                 isTemporary: true
             };
+            hydrateItemUVMetadata(temporaryDroppedFbxItem);
             renderFileList();
             selectFile(temporaryDroppedFbxItem, 0, document.querySelector('.file-item'));
         }
@@ -2464,6 +2603,7 @@
             // UV 面板控制
             const uvPanel = document.getElementById('uv-control-panel');
             if(uvPanel) uvPanel.style.display = (currentBaseType === 'uv') ? 'block' : 'none';
+            updateUVChannelRowVisibility();
             isUVMode = (currentBaseType === 'uv');
             if (isUVMode) applyPreviewUVChannel(activeUVChannelName);
             else restorePreviewUVChannel();

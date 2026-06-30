@@ -144,6 +144,42 @@ function getCachePath(filePath, mtime) {
     };
 }
 
+function getUVMetadataCachePath() {
+    return path.join(getDataDir(), 'uv-metadata.json');
+}
+
+function normalizeUVChannel(channel) {
+    if (!channel || typeof channel !== 'object') return null;
+    const name = String(channel.name || '').trim();
+    if (!name) return null;
+
+    return {
+        name,
+        label: String(channel.label || name).trim() || name,
+        meshCount: Number.isFinite(Number(channel.meshCount)) ? Number(channel.meshCount) : 0,
+        partial: !!channel.partial
+    };
+}
+
+function normalizeUVMetadataCache(raw) {
+    const source = raw && raw.entries && typeof raw.entries === 'object' ? raw.entries : raw;
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return {};
+
+    const normalized = {};
+    Object.entries(source).forEach(([key, entry]) => {
+        if (!key || !entry || typeof entry !== 'object') return;
+        const mtime = Number(entry.mtime);
+        if (!Number.isFinite(mtime)) return;
+
+        normalized[key] = {
+            mtime,
+            channels: Array.isArray(entry.channels) ? entry.channels.map(normalizeUVChannel).filter(Boolean) : [],
+            updatedAt: entry.updatedAt || new Date(0).toISOString()
+        };
+    });
+    return normalized;
+}
+
 function normalizeVersion(version) {
     return String(version || '').trim().replace(/^v/i, '');
 }
@@ -216,6 +252,31 @@ ipcMain.handle('save-favorites', async (event, favoritesArray) => {
         fs.writeFileSync(favPath, JSON.stringify(favoritesArray, null, 2), 'utf-8');
     } catch (err) {
         console.error('保存收藏失败:', err);
+    }
+});
+
+ipcMain.handle('load-uv-metadata', async () => {
+    try {
+        const cachePath = getUVMetadataCachePath();
+        if (!fs.existsSync(cachePath)) return {};
+
+        const data = fs.readFileSync(cachePath, 'utf-8');
+        return normalizeUVMetadataCache(JSON.parse(data));
+    } catch (err) {
+        console.error('读取 UV 元数据缓存失败:', err);
+        return {};
+    }
+});
+
+ipcMain.handle('save-uv-metadata', async (event, cacheData) => {
+    try {
+        const cachePath = getUVMetadataCachePath();
+        const normalized = normalizeUVMetadataCache(cacheData);
+        fs.writeFileSync(cachePath, JSON.stringify({ version: 1, entries: normalized }, null, 2), 'utf-8');
+        return true;
+    } catch (err) {
+        console.error('保存 UV 元数据缓存失败:', err);
+        return false;
     }
 });
 
