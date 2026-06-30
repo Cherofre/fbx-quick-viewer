@@ -33,7 +33,9 @@ assertContains(indexHtml, 'function updateUVChannelOptions(model)', 'renderer');
 assertContains(indexHtml, 'function getGeometryUVAttribute(geometry, channelName)', 'renderer');
 assertContains(indexHtml, 'function applyPreviewUVChannel(channelName)', 'renderer');
 assertContains(indexHtml, 'function restorePreviewUVChannel()', 'renderer');
-assertContains(indexHtml, 'function renderUVBadge(item)', 'renderer');
+assertContains(indexHtml, 'function renderUVBadge(item, mode)', 'renderer');
+assertContains(indexHtml, '.grid-uv-badge', 'renderer');
+assertContains(indexHtml, "renderUVBadge(item, 'grid')", 'renderer');
 assertContains(indexHtml, 'function updateFileUVMetadata(item, channels)', 'renderer');
 
 console.log('v1.0.4 feature checks passed');

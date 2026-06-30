@@ -469,6 +469,21 @@
             line-height: 1;
             flex: 0 0 auto;
         }
+        .grid-uv-badge {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            z-index: 21;
+            padding: 2px 5px;
+            border: 1px solid rgba(79, 193, 255, 0.65);
+            border-radius: 3px;
+            background: rgba(0, 0, 0, 0.62);
+            color: #4fc1ff;
+            font-size: 10px;
+            font-weight: 600;
+            line-height: 1;
+            pointer-events: none;
+        }
         .fav-icon {
             cursor: pointer;
             font-size: 16px;
@@ -1352,7 +1367,14 @@
                     favBtn.onclick = (e) => toggleFavorite(e, item.relativePath);
                     const img = document.createElement('img'); img.className='thumb-img'; img.id='thumb-'+index; img.dataset.relativePath = item.relativePath;
                     img.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDUwIDUwIj48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZHk9Ii4zZW0iIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM1NTUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjgiPkZCWDwvdGV4dD48L3N2Zz4=';
-                    const nm = document.createElement('div'); nm.className='thumb-name'; nm.innerHTML = `${item.name}${renderUVBadge(item)}`; nm.title=item.name;
+                    const nm = document.createElement('div'); nm.className='thumb-name'; nm.textContent = item.name; nm.title=item.name;
+                    const gridBadgeHtml = renderUVBadge(item, 'grid');
+                    if (gridBadgeHtml) {
+                        const badgeTemplate = document.createElement('span');
+                        badgeTemplate.innerHTML = gridBadgeHtml;
+                        const gridBadge = badgeTemplate.firstElementChild;
+                        if (gridBadge) gi.appendChild(gridBadge);
+                    }
                     
                     gi.append(favBtn, img, nm); // 把星星也加进去
                     
@@ -1529,15 +1551,27 @@
                 if (badge) listItem.insertBefore(badge, favIcon || null);
             }
             const gridItem = document.getElementById('file-grid')?.children[index];
-            const thumbName = gridItem ? gridItem.querySelector('.thumb-name') : null;
-            if (thumbName) thumbName.innerHTML = `${item.name}${badgeHtml}`;
+            if (gridItem) {
+                gridItem.querySelectorAll('.grid-uv-badge, .thumb-name .uv-badge').forEach(el => el.remove());
+                const thumbName = gridItem.querySelector('.thumb-name');
+                if (thumbName) {
+                    thumbName.textContent = item.name;
+                    thumbName.title = item.name;
+                }
+                const gridBadgeHtml = renderUVBadge(item, 'grid');
+                const template = document.createElement('span');
+                template.innerHTML = gridBadgeHtml;
+                const badge = template.firstElementChild;
+                if (badge) gridItem.appendChild(badge);
+            }
         }
 
-        function renderUVBadge(item) {
+        function renderUVBadge(item, mode) {
             const channels = item && (item.uvChannels || modelUVMetadata.get(getUVMetadataKey(item)));
             if (!channels || !channels.some(channel => getUVChannelOrder(channel.name) >= 2)) return '';
             const second = channels.find(channel => getUVChannelOrder(channel.name) >= 2);
-            return `<span class="uv-badge">${second.label}${second.partial ? '*' : ''}</span>`;
+            const className = mode === 'grid' ? 'grid-uv-badge' : 'uv-badge';
+            return `<span class="${className}">${second.label}${second.partial ? '*' : ''}</span>`;
         }
 
         function renderThumbnailPauseControls(totalCount) {
