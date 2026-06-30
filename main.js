@@ -219,6 +219,24 @@ ipcMain.handle('scan-folder', async (event, customPath) => {
     }
 });
 
+ipcMain.handle('get-file-info', async (event, filePath) => {
+    try {
+        if (!filePath || path.extname(filePath).toLowerCase() !== '.fbx') return null;
+        const stat = fs.statSync(filePath);
+        if (!stat.isFile()) return null;
+
+        return {
+            name: path.basename(filePath),
+            fullPath: filePath,
+            mtime: stat.mtimeMs,
+            type: 'fbx'
+        };
+    } catch (error) {
+        console.error("File info error:", error);
+        return null;
+    }
+});
+
 ipcMain.handle('check-thumbnail', async (event, filePath, mtime) => {
     try {
         const { file } = getCachePath(filePath, mtime);

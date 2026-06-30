@@ -443,6 +443,8 @@
         #model-stats span { color: #4fc1ff; font-weight: bold; }
         #drag-hint { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.8); font-size: 20px; font-weight: bold; pointer-events: none; display: none; text-shadow: 0 0 10px rgba(0,0,0,0.8); z-index: 40;}
         #progress-info { color:#4fc1ff; font-size:11px; margin-left:5px; font-weight:normal; }
+        .progress-action-btn { margin-left: 6px; padding: 1px 5px; background: #333; color: #ddd; border: 1px solid #555; border-radius: 2px; font-size: 11px; cursor: pointer; }
+        .progress-action-btn:hover { background: #444; color: #fff; border-color: #777; }
 
          /* --- 🟢 新增：收藏功能样式 --- */
         /* 列表模式下的星星 */
@@ -640,7 +642,7 @@
             <canvas id="viewcube-canvas"></canvas>
         </div>
 
-        <div id="drag-hint">释放鼠标以加载贴图</div>
+        <div id="drag-hint">释放鼠标以加载 FBX 或贴图</div>
         <div id="sidebar-toggle-btn" onclick="toggleSidebar()" title="折叠/展开侧边栏">◀</div>
         <div id="loading-overlay">加载中...</div>
         
@@ -1111,15 +1113,18 @@
         let isFavFilterOnly = false; // 是否只显示收藏
 
         // 缩略图变量
+        const THUMBNAIL_AUTO_GENERATE_LIMIT = 300;
         let thumbnailCache = new Map();
         let thumbQueue = [];
         let isThumbProcessing = false;
         let thumbRenderer, thumbScene, thumbCamera, thumbLoader;
         let totalThumbCount = 0;
         let processedThumbCount = 0;
+        let thumbnailObserver = null;
 
         let loadSequenceId = 0; 
         let currentNavMode = 'default';
+        let temporaryDroppedFbxItem = null;
 
         if (typeof require !== 'undefined') {
             try {
@@ -1224,6 +1229,7 @@
             const gridEl = document.getElementById('file-grid');
             const searchVal = document.getElementById('search-input').value.toLowerCase();
             listEl.innerHTML = ''; gridEl.innerHTML = '';
+            resetThumbnailObserver();
             
             // 1. 先过滤搜索词
             let filtered = allFilesData.filter(item => item.name.toLowerCase().includes(searchVal));
@@ -1250,6 +1256,12 @@
                 if (valA > valB) return currentSortDesc ? -1 : 1;
                 return 0;
             });
+            if (!isFavFilterOnly && temporaryDroppedFbxItem && temporaryDroppedFbxItem.name.toLowerCase().includes(searchVal)) {
+                filtered = [
+                    temporaryDroppedFbxItem,
+                    ...filtered.filter(item => item.fullPath !== temporaryDroppedFbxItem.fullPath)
+                ];
+            }
             currentDisplayList = filtered;
             currentSelectedIndex = -1;
             thumbQueue = [];
@@ -1258,24 +1270,32 @@
                 gridEl.innerHTML = `<div style="padding:15px; color:#666; text-align:center;">没有找到文件</div>`;
                 return;
             }
+            const canAutoGenerateThumbnails = shouldAutoGenerateThumbnails(filtered.length);
+            const progressEl = document.getElementById('progress-info');
+            if (isGridView && !canAutoGenerateThumbnails && progressEl) {
+                renderThumbnailPauseControls(filtered.length);
+            } else if (progressEl && !isThumbProcessing) {
+                progressEl.innerText = "";
+            }
             filtered.forEach((item, index) => {
                 const isFav = favoriteSet.has(item.relativePath);
                 const favClass = isFav ? 'active' : '';
-                const favSymbol = isFav ? '★' : '☆';
                 // --- List View (列表模式) ---
                 const div = document.createElement('div');
                 div.className = 'file-item';
                 
                 // 1. 生成 HTML (注意：这里把 onclick 删掉了，加上了 id 用于定位，或者直接用类名)
                 div.innerHTML = `
-                    <span class="file-name-span">${item.name}</span>
-                    <span class="fav-icon ${favClass}">★</span>
+                    <span class="file-name-span">${item.isTemporary ? '[临时] ' : ''}${item.name}</span>
+                    ${item.isTemporary ? '' : `<span class="fav-icon ${favClass}">★</span>`}
                 `;
                 // 2. 🟢 关键修复：使用 JS 直接绑定点击事件，完美避开所有转义字符问题
                 const starBtn = div.querySelector('.fav-icon');
-                starBtn.onclick = (e) => {
-                    toggleFavorite(e, item.relativePath);
-                };
+                if (starBtn) {
+                    starBtn.onclick = (e) => {
+                        toggleFavorite(e, item.relativePath);
+                    };
+                }
                 
                 div.dataset.index = index;
                 div.draggable = true;
@@ -1301,8 +1321,9 @@
                     const favBtn = document.createElement('div');
                     favBtn.className = `grid-fav-icon ${favClass}`;
                     favBtn.innerHTML = '★';
+                    favBtn.style.display = item.isTemporary ? 'none' : '';
                     favBtn.onclick = (e) => toggleFavorite(e, item.relativePath);
-                    const img = document.createElement('img'); img.className='thumb-img'; img.id='thumb-'+index;
+                    const img = document.createElement('img'); img.className='thumb-img'; img.id='thumb-'+index; img.dataset.relativePath = item.relativePath;
                     img.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDUwIDUwIj48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZHk9Ii4zZW0iIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM1NTUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjgiPkZCWDwvdGV4dD48L3N2Zz4=';
                     const nm = document.createElement('div'); nm.className='thumb-name'; nm.innerText=item.name; nm.title=item.name;
                     
@@ -1315,16 +1336,17 @@
                     };
                     gridEl.appendChild(gi);
                     if(thumbnailCache.has(item.relativePath)) img.src = thumbnailCache.get(item.relativePath);
-                    else if(isElectron) {
+                    else if(canAutoGenerateThumbnails && isElectron) {
                         ipcRenderer.invoke('check-thumbnail', item.fullPath, item.date).then(res => {
                             if(res) { img.src=res; thumbnailCache.set(item.relativePath, res); }
-                            else { thumbQueue.push({item, id:'thumb-'+index}); }
+                            else { queueThumbnailItem(item, 'thumb-'+index); }
                             if(index === filtered.length - 1) checkQueueStart();
                         });
-                    } else { thumbQueue.push({item, id:'thumb-'+index}); checkQueueStart(); }
+                    } else if(canAutoGenerateThumbnails) { queueThumbnailItem(item, 'thumb-'+index); checkQueueStart(); }
+                    else { observeThumbnailItem(gi, item, index); }
                 }
             });
-            if(isGridView) checkQueueStart();
+            if(isGridView && canAutoGenerateThumbnails) checkQueueStart();
         }
 
         function selectFile(item, idx, el) {
@@ -1332,7 +1354,124 @@
             document.querySelectorAll('.file-item, .grid-item').forEach(x=>x.classList.remove('active'));
             if(el) el.classList.add('active');
             if (!isElectron) webFileMap.set(item.relativePath, item.rawFile);
-            loadModel(item.relativePath);
+            selectModelItem(item);
+        }
+
+        function selectModelItem(item) {
+            loadModel(item.relativePath, item.isTemporary ? { absolutePath: item.fullPath } : {});
+        }
+
+        function shouldAutoGenerateThumbnails(totalCount) {
+            return totalCount <= THUMBNAIL_AUTO_GENERATE_LIMIT;
+        }
+
+        function getThumbnailBatchLimit(totalCount) {
+            return Math.min(totalCount, THUMBNAIL_AUTO_GENERATE_LIMIT);
+        }
+
+        function renderThumbnailPauseControls(totalCount) {
+            const progressEl = document.getElementById('progress-info');
+            if (!progressEl) return;
+            progressEl.innerHTML = `当前列表 ${totalCount} 个模型，已启用滚动懒加载`
+                + ` <button class="progress-action-btn" onclick="generatePausedThumbnails(false)">生成前 300</button>`
+                + ` <button class="progress-action-btn" onclick="generatePausedThumbnails(true)">生成全部</button>`;
+        }
+
+        function generatePausedThumbnails(loadAll, skipConfirm) {
+            const totalCount = currentDisplayList.length;
+            const batchLimit = loadAll ? totalCount : getThumbnailBatchLimit(totalCount);
+            if (!skipConfirm && loadAll && totalCount > THUMBNAIL_AUTO_GENERATE_LIMIT) {
+                const ok = confirm(`生成全部 ${totalCount} 个缩略图可能会明显占用 CPU/GPU，期间应用可能变慢。\n确定继续吗？`);
+                if (!ok) return;
+            }
+            queueThumbnailBatch(batchLimit);
+        }
+
+        function queueThumbnailBatch(batchLimit) {
+            if(isThumbProcessing) {
+                alert("缩略图正在生成中，请等待当前队列完成后再批量生成。");
+                return;
+            }
+            thumbQueue = [];
+
+            currentDisplayList.slice(0, batchLimit).forEach((item, index) => {
+                const imgEl = document.getElementById('thumb-' + index);
+                if(imgEl) imgEl.style.opacity = '0.3';
+                queueThumbnailItem(item, 'thumb-' + index);
+            });
+
+            totalThumbCount = thumbQueue.length;
+            processedThumbCount = 0;
+            processThumbQueue();
+        }
+
+        function resetThumbnailObserver() {
+            if (thumbnailObserver) {
+                thumbnailObserver.disconnect();
+                thumbnailObserver = null;
+            }
+        }
+
+        function setupLazyThumbnailObserver() {
+            if (thumbnailObserver) return thumbnailObserver;
+            const gridEl = document.getElementById('file-grid');
+            if (!gridEl || typeof IntersectionObserver === 'undefined') return null;
+
+            thumbnailObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (!entry.isIntersecting) return;
+                    const target = entry.target;
+                    thumbnailObserver.unobserve(target);
+                    const item = currentDisplayList[Number(target.dataset.index)];
+                    if (!item || thumbnailCache.has(item.relativePath)) return;
+                    checkThumbnailCacheBeforeQueue(item, target.dataset.thumbId);
+                });
+            }, { root: gridEl, rootMargin: '400px 0px', threshold: 0.01 });
+
+            return thumbnailObserver;
+        }
+
+        function observeThumbnailItem(gridItem, item, index) {
+            const observer = setupLazyThumbnailObserver();
+            if (!observer) {
+                if (index < THUMBNAIL_AUTO_GENERATE_LIMIT) {
+                    queueThumbnailItem(item, 'thumb-' + index);
+                    checkQueueStart();
+                }
+                return;
+            }
+            gridItem.dataset.index = index;
+            gridItem.dataset.thumbId = 'thumb-' + index;
+            observer.observe(gridItem);
+        }
+
+        function queueThumbnailItem(item, id) {
+            thumbQueue.push({ item: item, id: id, relativePath: item.relativePath });
+        }
+
+        function isThumbnailTargetCurrent(id, item) {
+            const imgEl = document.getElementById(id);
+            return !!imgEl && imgEl.dataset.relativePath === item.relativePath;
+        }
+
+        function checkThumbnailCacheBeforeQueue(item, id) {
+            if (!isElectron || !item.fullPath) {
+                queueThumbnailItem(item, id);
+                checkQueueStart();
+                return;
+            }
+            ipcRenderer.invoke('check-thumbnail', item.fullPath, item.date).then(res => {
+                if (!isThumbnailTargetCurrent(id, item)) return;
+                if (res) {
+                    const imgEl = document.getElementById(id);
+                    imgEl.src = res;
+                    imgEl.style.opacity = '1';
+                    thumbnailCache.set(item.relativePath, res);
+                } else {
+                    queueThumbnailItem(item, id);
+                    checkQueueStart();
+                }
+            });
         }
 
         function checkQueueStart() {
@@ -1386,7 +1525,7 @@
             const {item, id} = thumbQueue.shift();
             
             // 元素检查
-            if(!document.getElementById(id)) { 
+            if(!isThumbnailTargetCurrent(id, item)) {
                 isThumbProcessing = false; 
                 setTimeout(processThumbQueue, 5); 
                 return; 
@@ -1476,7 +1615,7 @@
                         // 8. 输出
                         const data = thumbRenderer.domElement.toDataURL("image/png");
                         const imgEl = document.getElementById(id);
-                        if(imgEl) {
+                        if(imgEl && isThumbnailTargetCurrent(id, item)) {
                             imgEl.src = data;
                             
                             // 🟢🟢🟢 修复点：一定要把透明度改回 1，否则就是灰的！ 🟢🟢🟢
@@ -1826,7 +1965,7 @@
                 }
             }
             if (!isElectron) { webFileMap.set(item.relativePath, item.rawFile); }
-            loadModel(item.relativePath);
+            selectModelItem(item);
         }
 
         function initMaterials() {
@@ -1859,9 +1998,40 @@
             container.addEventListener('dragleave', (e) => { e.preventDefault(); container.classList.remove('drag-over'); hint.style.display = 'none'; });
             container.addEventListener('drop', (e) => {
                 e.preventDefault(); container.classList.remove('drag-over'); hint.style.display = 'none';
+                if (e.dataTransfer.files.length > 0 && isFbxFile(e.dataTransfer.files[0])) {
+                    loadDroppedFbx(e.dataTransfer.files[0]);
+                    return;
+                }
                 if (!isUVMode) { alert("请先点击 [启用贴图预览] 按钮，再拖拽贴图！"); return; }
                 if (e.dataTransfer.files.length > 0) loadDroppedTexture(e.dataTransfer.files[0]);
             });
+        }
+
+        function isFbxFile(file) {
+            return !!file && typeof file.name === 'string' && file.name.toLowerCase().endsWith('.fbx');
+        }
+
+        async function loadDroppedFbx(file) {
+            if (!isElectron || !file || !file.path) {
+                alert("当前环境不支持直接拖入本地 FBX 文件");
+                return;
+            }
+
+            const info = await ipcRenderer.invoke('get-file-info', file.path);
+            if (!info) {
+                alert("无法读取拖入的 FBX 文件");
+                return;
+            }
+
+            temporaryDroppedFbxItem = {
+                name: info.name,
+                relativePath: info.fullPath,
+                fullPath: info.fullPath,
+                date: info.mtime,
+                isTemporary: true
+            };
+            renderFileList();
+            selectFile(temporaryDroppedFbxItem, 0, document.querySelector('.file-item'));
         }
 
         function loadDroppedTexture(file) {
@@ -1903,7 +2073,7 @@
             } else { btn.classList.remove('active-btn'); }
         }
 
-        function loadModel(identifier, element) {
+        function loadModel(identifier, options = {}) {
             toggleUVWindow(false);
             if (isNormalsVisible) toggleNormals(); 
             const loading = document.getElementById('loading-overlay');
@@ -1912,7 +2082,8 @@
             const myLoadId = loadSequenceId;
 
             let loadUrl = ""; let displayPath = identifier;
-            if (isElectron) { loadUrl = path.join(currentBasePath, identifier); displayPath = loadUrl; currentFullFilePath = loadUrl; } 
+            if (isElectron && options.absolutePath) { loadUrl = options.absolutePath; displayPath = loadUrl; currentFullFilePath = loadUrl; }
+            else if (isElectron) { loadUrl = path.join(currentBasePath, identifier); displayPath = loadUrl; currentFullFilePath = loadUrl; }
             else {
                 const fileObj = webFileMap.get(identifier);
                 if (fileObj) loadUrl = URL.createObjectURL(fileObj); else { loading.style.display = 'none'; return; }
@@ -2509,21 +2680,7 @@ if (fileListEl) {
 
         function regenerateAllThumbnails() {
     if(!confirm("确定要重新生成当前列表的所有缩略图吗？\n这可能需要一些时间。")) return;
-    
-    // 清空现有队列，防止堵塞
-    thumbQueue = [];
-    isThumbProcessing = false;
-    
-    // 把所有文件全部加入队列
-    currentDisplayList.forEach((item, index) => {
-        // 给个视觉反馈，把格子变暗
-        const imgEl = document.getElementById('thumb-' + index);
-        if(imgEl) imgEl.style.opacity = '0.3';
-        
-        thumbQueue.push({ item: item, id: 'thumb-' + index });
-    });
-    
-    processThumbQueue();
+    generatePausedThumbnails(true, true);
 }
 
 let autoFixQueue = [];
