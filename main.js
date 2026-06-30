@@ -7,6 +7,7 @@ const https = require('https');
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 
 let mainWindow;
+let cachedDataDir = null;
 
 // --- 新增：获取窗口配置文件路径 ---
 function getWindowStatePath() {
@@ -100,17 +101,53 @@ function getRealExeDir() {
     if (process.execPath) return path.dirname(process.execPath);
     return process.cwd();
 }
+
+function canWriteDirectory(dir) {
+    try {
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const testFile = path.join(dir, '.permission_test');
+        fs.writeFileSync(testFile, 'ok');
+        fs.unlinkSync(testFile);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+function getPortableDataDir() {
+    return path.join(getRealExeDir(), 'FBX_Data');
+}
+
 // 🟢 新增：获取统一的数据存储目录 (Data 文件夹)
 function getDataDir() {
-    const dataPath = path.join(getRealExeDir(), 'FBX_Data');
-    if (!fs.existsSync(dataPath)) {
-        try {
-            fs.mkdirSync(dataPath, { recursive: true });
-        } catch (e) {
-            console.error("创建数据文件夹失败:", e);
+    if (cachedDataDir) return cachedDataDir;
+
+    const portablePath = getPortableDataDir();
+    const userDataPath = path.join(app.getPath('userData'), 'FBX_Data');
+    const preferredPaths = [];
+
+    if (process.env.PORTABLE_EXECUTABLE_DIR) {
+        preferredPaths.push(portablePath, userDataPath);
+    } else if (!app.isPackaged) {
+        preferredPaths.push(path.join(process.cwd(), 'FBX_Data'), userDataPath, portablePath);
+    } else {
+        preferredPaths.push(userDataPath, portablePath);
+    }
+
+    for (const dataPath of preferredPaths) {
+        if (canWriteDirectory(dataPath)) {
+            cachedDataDir = dataPath;
+            return cachedDataDir;
         }
     }
-    return dataPath;
+
+    cachedDataDir = userDataPath;
+    try {
+        fs.mkdirSync(cachedDataDir, { recursive: true });
+    } catch (e) {
+        console.error("创建数据文件夹失败:", e);
+    }
+    return cachedDataDir;
 }
 
 // 初始化缓存目录
@@ -408,10 +445,26 @@ ipcMain.handle('check-for-updates', async () => {
     }
 });
 
+function isAllowedExternalUrl(url) {
+    try {
+        const parsed = new URL(String(url || ''));
+        return parsed.protocol === 'https:'
+            && parsed.hostname === 'github.com'
+            && parsed.pathname.startsWith('/Cherofre/fbx-quick-viewer/releases');
+    } catch (error) {
+        return false;
+    }
+}
+
 ipcMain.handle('open-external-url', async (event, url) => {
-    if (!/^https?:\/\//i.test(String(url || ''))) return false;
-    await shell.openExternal(url);
-    return true;
+    try {
+        if (!isAllowedExternalUrl(url)) return false;
+        await shell.openExternal(url);
+        return true;
+    } catch (error) {
+        console.error('打开外部链接失败:', error);
+        return false;
+    }
 });
 
 ipcMain.handle('open-folder-dialog', async () => {

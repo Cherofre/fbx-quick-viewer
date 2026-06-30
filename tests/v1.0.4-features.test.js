@@ -11,13 +11,21 @@ function assertContains(source, text, label) {
     assert(source.includes(text), `${label} should contain ${JSON.stringify(text)}`);
 }
 
+function assertNotContains(source, text, label) {
+    assert(!source.includes(text), `${label} should not contain ${JSON.stringify(text)}`);
+}
+
 assert.strictEqual(packageJson.version, '1.0.4', 'package version should be bumped for v1.0.4');
 assert.strictEqual(packageJson.scripts.test, 'node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js', 'npm test should run both regression suites');
 
 assertContains(mainJs, 'function compareVersions', 'main process');
 assertContains(mainJs, 'function fetchLatestRelease', 'main process');
+assertContains(mainJs, 'function canWriteDirectory', 'main process');
+assertContains(mainJs, 'function getPortableDataDir', 'main process');
+assertContains(mainJs, "app.getPath('userData')", 'main process');
 assertContains(mainJs, 'function getUVMetadataCachePath', 'main process');
 assertContains(mainJs, 'function normalizeUVMetadataCache', 'main process');
+assertContains(mainJs, 'function isAllowedExternalUrl', 'main process');
 assertContains(mainJs, "ipcMain.handle('check-for-updates'", 'main process');
 assertContains(mainJs, "ipcMain.handle('open-external-url'", 'main process');
 assertContains(mainJs, "ipcMain.handle('load-uv-metadata'", 'main process');
@@ -27,6 +35,11 @@ assertContains(mainJs, 'api.github.com/repos/Cherofre/fbx-quick-viewer/releases/
 assertContains(indexHtml, 'id="check-update-btn"', 'renderer');
 assertContains(indexHtml, 'async function checkForUpdates(manual)', 'renderer');
 assertContains(indexHtml, 'function scheduleSilentUpdateCheck()', 'renderer');
+assert.strictEqual([...indexHtml.matchAll(/async function initApp\(\)/g)].length, 1, 'renderer should only define initApp once');
+assertNotContains(indexHtml, 'onclick="selectHistoryItem(', 'renderer history menu');
+assertContains(indexHtml, "itemEl.addEventListener('click', () => selectHistoryItem(p));", 'renderer history menu');
+assertContains(indexHtml, "checkForUpdates(false).then(result => {", 'renderer update scheduler');
+assertContains(indexHtml, "if (result && result.ok) localStorage.setItem(key, String(Date.now()));", 'renderer update scheduler');
 
 assertContains(indexHtml, 'id="uv-channel-select"', 'renderer');
 assertContains(indexHtml, 'let activeUVChannelName =', 'renderer');
@@ -42,6 +55,7 @@ assertContains(indexHtml, 'function collectModelUVChannels(model)', 'renderer');
 assertContains(indexHtml, 'function updateUVChannelOptions(model)', 'renderer');
 assertContains(indexHtml, 'function getGeometryUVAttribute(geometry, channelName)', 'renderer');
 assertContains(indexHtml, 'function applyPreviewUVChannel(channelName)', 'renderer');
+assertContains(indexHtml, 'if (previewUVGeometries.has(child.geometry)) return;', 'renderer');
 assertContains(indexHtml, 'function restorePreviewUVChannel()', 'renderer');
 assertContains(indexHtml, 'function renderUVBadge(item, mode)', 'renderer');
 assertContains(indexHtml, '.grid-uv-badge', 'renderer');
@@ -51,5 +65,10 @@ assertContains(indexHtml, "ipcRenderer.invoke('load-uv-metadata')", 'renderer');
 assertContains(indexHtml, "ipcRenderer.invoke('save-uv-metadata'", 'renderer');
 assertContains(indexHtml, 'await loadUVMetadataCache();', 'renderer');
 assertContains(indexHtml, 'hydrateItemUVMetadata(item);', 'renderer');
+assertContains(indexHtml, 'function getThumbnailCacheKey(item)', 'renderer');
+assertNotContains(indexHtml, 'thumbnailCache.has(item.relativePath)', 'renderer');
+assertContains(indexHtml, 'const selectedItem = options.item || currentDisplayList[currentSelectedIndex];', 'renderer');
+assertContains(indexHtml, 'updateFileUVMetadata(selectedItem, uvChannels);', 'renderer');
+assertNotContains(indexHtml, 'if (!isFavFilterOnly && temporaryDroppedFbxItem', 'renderer');
 
 console.log('v1.0.4 feature checks passed');

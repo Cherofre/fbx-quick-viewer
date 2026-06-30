@@ -1274,11 +1274,6 @@
             const metadata = hydrateItemUVMetadata(item);
             return metadata ? metadata.channels : null;
         }
-        // 2. 定义应用程序主入口
-        async function initApp() {
-        }
-        // 3. 启动应用
-        initApp();
         let isFavFilterOnly = false; // 是否只显示收藏
 
         // 缩略图变量
@@ -1425,7 +1420,7 @@
                 if (valA > valB) return currentSortDesc ? -1 : 1;
                 return 0;
             });
-            if (!isFavFilterOnly && temporaryDroppedFbxItem && temporaryDroppedFbxItem.name.toLowerCase().includes(searchVal)) {
+            if (temporaryDroppedFbxItem) {
                 filtered = [
                     temporaryDroppedFbxItem,
                     ...filtered.filter(item => item.fullPath !== temporaryDroppedFbxItem.fullPath)
@@ -1486,6 +1481,7 @@
                 // --- Grid View (缩略图模式) ---
                 if(isGridView) {
                     const gi = document.createElement('div'); gi.className='grid-item';
+                    const thumbnailKey = getThumbnailCacheKey(item);
                     
                     // 🟢 新增：右上角的星星
                     const favBtn = document.createElement('div');
@@ -1494,6 +1490,7 @@
                     favBtn.style.display = item.isTemporary ? 'none' : '';
                     favBtn.onclick = (e) => toggleFavorite(e, item.relativePath);
                     const img = document.createElement('img'); img.className='thumb-img'; img.id='thumb-'+index; img.dataset.relativePath = item.relativePath;
+                    img.dataset.thumbnailKey = thumbnailKey;
                     img.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDUwIDUwIj48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZHk9Ii4zZW0iIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM1NTUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjgiPkZCWDwvdGV4dD48L3N2Zz4=';
                     const nm = document.createElement('div'); nm.className='thumb-name'; nm.textContent = item.name; nm.title=item.name;
                     const gridBadgeHtml = renderUVBadge(item, 'grid');
@@ -1512,10 +1509,10 @@
                         gi.classList.add('active'); 
                     };
                     gridEl.appendChild(gi);
-                    if(thumbnailCache.has(item.relativePath)) img.src = thumbnailCache.get(item.relativePath);
+                    if(thumbnailCache.has(thumbnailKey)) img.src = thumbnailCache.get(thumbnailKey);
                     else if(canAutoGenerateThumbnails && isElectron) {
                         ipcRenderer.invoke('check-thumbnail', item.fullPath, item.date).then(res => {
-                            if(res) { img.src=res; thumbnailCache.set(item.relativePath, res); }
+                            if(res) { img.src=res; thumbnailCache.set(thumbnailKey, res); }
                             else { queueThumbnailItem(item, 'thumb-'+index); }
                             if(index === filtered.length - 1) checkQueueStart();
                         });
@@ -1535,7 +1532,8 @@
         }
 
         function selectModelItem(item) {
-            loadModel(item.relativePath, item.isTemporary ? { absolutePath: item.fullPath } : {});
+            const options = item.isTemporary ? { absolutePath: item.fullPath, item: item } : { item: item };
+            loadModel(item.relativePath, options);
         }
 
         function shouldAutoGenerateThumbnails(totalCount) {
@@ -1544,6 +1542,12 @@
 
         function getThumbnailBatchLimit(totalCount) {
             return Math.min(totalCount, THUMBNAIL_AUTO_GENERATE_LIMIT);
+        }
+
+        function getThumbnailCacheKey(item) {
+            if (!item) return '';
+            const sourcePath = item.fullPath || (currentBasePath && item.relativePath ? path.join(currentBasePath, item.relativePath) : item.relativePath || item.name || '');
+            return `${normalizeUVMetadataKey(sourcePath)}::${Math.floor(getItemMTime(item))}`;
         }
 
         function getUVChannelLabel(channelName) {
@@ -1645,10 +1649,11 @@
 
             currentModel.traverse(child => {
                 if (!child.isMesh || !child.geometry) return;
+                if (previewUVGeometries.has(child.geometry)) return;
                 const selectedUV = getGeometryUVAttribute(child.geometry, channelName);
                 const originalUV = getGeometryUVAttribute(child.geometry, 'uv');
-                if (!selectedUV || !originalUV) return;
-                previewUVGeometries.set(child.geometry, originalUV);
+                if (!selectedUV) return;
+                previewUVGeometries.set(child.geometry, originalUV || null);
                 child.geometry.setAttribute('uv', selectedUV);
                 child.geometry.attributes.uv.needsUpdate = true;
             });
@@ -1656,8 +1661,14 @@
 
         function restorePreviewUVChannel() {
             previewUVGeometries.forEach((originalUV, geometry) => {
-                geometry.setAttribute('uv', originalUV);
-                geometry.attributes.uv.needsUpdate = true;
+                if (originalUV) {
+                    geometry.setAttribute('uv', originalUV);
+                    geometry.attributes.uv.needsUpdate = true;
+                } else if (typeof geometry.deleteAttribute === 'function') {
+                    geometry.deleteAttribute('uv');
+                } else if (geometry.attributes) {
+                    delete geometry.attributes.uv;
+                }
             });
             previewUVGeometries.clear();
         }
@@ -1760,7 +1771,7 @@
                     const target = entry.target;
                     thumbnailObserver.unobserve(target);
                     const item = currentDisplayList[Number(target.dataset.index)];
-                    if (!item || thumbnailCache.has(item.relativePath)) return;
+                    if (!item || thumbnailCache.has(getThumbnailCacheKey(item))) return;
                     checkThumbnailCacheBeforeQueue(item, target.dataset.thumbId);
                 });
             }, { root: gridEl, rootMargin: '400px 0px', threshold: 0.01 });
@@ -1783,12 +1794,12 @@
         }
 
         function queueThumbnailItem(item, id) {
-            thumbQueue.push({ item: item, id: id, relativePath: item.relativePath });
+            thumbQueue.push({ item: item, id: id, thumbnailKey: getThumbnailCacheKey(item) });
         }
 
         function isThumbnailTargetCurrent(id, item) {
             const imgEl = document.getElementById(id);
-            return !!imgEl && imgEl.dataset.relativePath === item.relativePath;
+            return !!imgEl && imgEl.dataset.thumbnailKey === getThumbnailCacheKey(item);
         }
 
         function checkThumbnailCacheBeforeQueue(item, id) {
@@ -1803,7 +1814,7 @@
                     const imgEl = document.getElementById(id);
                     imgEl.src = res;
                     imgEl.style.opacity = '1';
-                    thumbnailCache.set(item.relativePath, res);
+                    thumbnailCache.set(getThumbnailCacheKey(item), res);
                 } else {
                     queueThumbnailItem(item, id);
                     checkQueueStart();
@@ -1959,7 +1970,7 @@
                             imgEl.style.opacity = '1'; 
                         }
                         
-                        thumbnailCache.set(item.relativePath, data);
+                        thumbnailCache.set(getThumbnailCacheKey(item), data);
                         if(isElectron && finalPath) {
                             ipcRenderer.invoke('save-thumbnail', finalPath, item.date, data).catch(err => console.error(err));
                         }
@@ -2011,6 +2022,7 @@
             if (!isElectron) return;
             const result = await ipcRenderer.invoke('scan-folder', customPath);
             currentBasePath = result.path;
+            temporaryDroppedFbxItem = null;
             addToHistory(currentBasePath); 
             document.getElementById('dir-name').innerText = currentBasePath.split(path.sep).pop() || "Root";
             document.getElementById('file-count').innerText = result.files.length;
@@ -2113,16 +2125,42 @@
         function renderHistoryList() {
             const h = JSON.parse(localStorage.getItem('fbx_hist')||'[]');
             const el = document.getElementById('history-dropdown');
+            el.innerHTML = '';
             if(!h.length) {
-                el.innerHTML = '<div style="padding:10px;text-align:center;font-size:12px;color:#666">无记录</div>';
+                const emptyEl = document.createElement('div');
+                emptyEl.style.cssText = 'padding:10px;text-align:center;font-size:12px;color:#666';
+                emptyEl.textContent = '无记录';
+                el.appendChild(emptyEl);
                 return;
             }
-            el.innerHTML = h.map(p => 
-                `<div class="history-item" onclick="selectHistoryItem('${p.replace(/\\/g,'\\\\')}')">
-                    <span style="font-size:14px;">📂</span>
-                    <span class="history-path" title="${p}">${p}</span>
-                 </div>`
-            ).join('') + '<div class="history-item" style="justify-content:center; color:#888;" onclick="localStorage.removeItem(\'fbx_hist\');renderHistoryList()">清空历史</div>';
+            h.forEach(p => {
+                const itemEl = document.createElement('div');
+                itemEl.className = 'history-item';
+                itemEl.addEventListener('click', () => selectHistoryItem(p));
+
+                const iconEl = document.createElement('span');
+                iconEl.style.fontSize = '14px';
+                iconEl.textContent = '📂';
+
+                const pathEl = document.createElement('span');
+                pathEl.className = 'history-path';
+                pathEl.title = p;
+                pathEl.textContent = p;
+
+                itemEl.append(iconEl, pathEl);
+                el.appendChild(itemEl);
+            });
+
+            const clearEl = document.createElement('div');
+            clearEl.className = 'history-item';
+            clearEl.style.justifyContent = 'center';
+            clearEl.style.color = '#888';
+            clearEl.textContent = '清空历史';
+            clearEl.addEventListener('click', () => {
+                localStorage.removeItem('fbx_hist');
+                renderHistoryList();
+            });
+            el.appendChild(clearEl);
         }
 
         function resetUVParams() {
@@ -2165,7 +2203,7 @@
         async function checkForUpdates(manual) {
             if (!isElectron || !ipcRenderer) {
                 if (manual) alert("Web 模式不支持检查更新");
-                return;
+                return { ok: false, error: 'unsupported' };
             }
 
             const btn = document.getElementById('check-update-btn');
@@ -2176,17 +2214,24 @@
                 const result = await ipcRenderer.invoke('check-for-updates');
                 if (!result.ok) {
                     if (manual) alert(`检查更新失败：${result.error || '网络不可用'}`);
-                    return;
+                    return result;
                 }
 
                 if (result.updateAvailable) {
                     const message = `发现新版本 ${result.latestVersion}，当前版本 ${result.currentVersion}。\n是否打开下载页面？`;
                     if (confirm(message) && result.releaseUrl) {
-                        await ipcRenderer.invoke('open-external-url', result.releaseUrl);
+                        const opened = await ipcRenderer.invoke('open-external-url', result.releaseUrl);
+                        if (!opened && manual) alert("无法打开下载页面");
                     }
                 } else if (manual) {
                     alert(`当前已是最新版本：${result.currentVersion}`);
                 }
+                return result;
+            } catch (error) {
+                const message = error && error.message ? error.message : String(error);
+                if (manual) alert(`检查更新失败：${message}`);
+                else console.error("静默检查更新失败:", error);
+                return { ok: false, error: message };
             } finally {
                 if (manual && btn) btn.innerText = originalText;
             }
@@ -2198,8 +2243,11 @@
             const lastCheck = Number(localStorage.getItem(key) || 0);
             if (Date.now() - lastCheck < dayMs) return;
 
-            localStorage.setItem(key, String(Date.now()));
-            setTimeout(() => checkForUpdates(false), 3000);
+            setTimeout(() => {
+                checkForUpdates(false).then(result => {
+                    if (result && result.ok) localStorage.setItem(key, String(Date.now()));
+                }).catch(error => console.error("静默检查更新失败:", error));
+            }, 3000);
         }
 
         function loadConfig() {
@@ -2459,6 +2507,7 @@
         }
 
         function loadModel(identifier, options = {}) {
+            const selectedItem = options.item || currentDisplayList[currentSelectedIndex];
             toggleUVWindow(false);
             if (isNormalsVisible) toggleNormals(); 
             const loading = document.getElementById('loading-overlay');
@@ -2487,7 +2536,7 @@
                 }
                 currentModel = object;
                 const uvChannels = updateUVChannelOptions(object);
-                updateFileUVMetadata(currentDisplayList[currentSelectedIndex], uvChannels);
+                updateFileUVMetadata(selectedItem, uvChannels);
                 updateModelStats(object);
                 if (uvViewer && uvViewer.ctx) uvViewer.updateModel(object);
                 applyModelTransform(object);
@@ -3020,7 +3069,7 @@ if (fileListEl) {
                 setTimeout(()=> imgEl.parentElement.style.border = '', 1500);
             }
             const fileItem = currentDisplayList[ctxTargetIndex];
-            thumbnailCache.set(fileItem.relativePath, base64);
+            thumbnailCache.set(getThumbnailCacheKey(fileItem), base64);
             let savePath = fileItem.fullPath;
             if(!savePath && isElectron && currentBasePath) {
                 savePath = path.join(currentBasePath, fileItem.relativePath);
@@ -3097,7 +3146,7 @@ async function smartFixThumbnails() {
     
     for (let i = 0; i < currentDisplayList.length; i++) {
         const item = currentDisplayList[i];
-        const cachedBase64 = thumbnailCache.get(item.relativePath);
+        const cachedBase64 = thumbnailCache.get(getThumbnailCacheKey(item));
         
         let isBad = false;
         if (!cachedBase64) isBad = true; // 没图算坏
@@ -3242,7 +3291,7 @@ function processNextInFixQueue() {
                 imgEl.src = base64;
                 imgEl.style.opacity = '1';
             }
-            thumbnailCache.set(item.relativePath, base64);
+            thumbnailCache.set(getThumbnailCacheKey(item), base64);
             // 7. 保存
             if(isElectron && item.fullPath) {
                 ipcRenderer.invoke('save-thumbnail', item.fullPath, item.date, base64);
