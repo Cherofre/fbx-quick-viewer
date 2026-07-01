@@ -27,7 +27,7 @@ npm run dist
 ## 本项目注意事项
 
 - 不要提交 `node_modules/`、`dist/`、`FBX_Data/`、`fbx_cache/` 或日志/临时文件。
-- `FBX_Data` 是运行期数据目录，用于收藏、缩略图缓存、UV 元数据缓存和窗口状态。
+- `FBX_Data` 是运行期数据目录；小配置用于收藏、UV 元数据缓存和窗口状态，缩略图缓存优先放在 portable/exe 或安装目录同级的 `FBX_Data/fbx_cache`，安装目录不可写时才让用户选择位置。
 - 修改 `index.html` 时注意它包含大量渲染层逻辑，尽量保持变更聚焦并手动验证关键 UI 流程。
 - 修改 `libs/` 中第三方库前，先确认是否确实需要改 vendored 文件。
 

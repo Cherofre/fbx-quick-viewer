@@ -7,8 +7,11 @@ const { pathToFileURL } = require('url');
 
 let mainWindow;
 let cachedDataDir = null;
+let cachedThumbnailDataDir = null;
+let thumbnailCachePromptedThisSession = false;
 let activeScan = null;
 const LOCAL_FILE_SCHEME = 'fbx-local';
+const THUMBNAIL_CACHE_CONFIG_NAME = 'thumbnail-cache-dir.json';
 const ALLOWED_LOCAL_FILE_EXTENSIONS = new Set(['.fbx', '.png', '.jpg', '.jpeg', '.bmp', '.gif', '.dds', '.tga']);
 const localFileTokens = new Map();
 const localFilePathToToken = new Map();
@@ -125,7 +128,7 @@ function createWindow() {
     });
 
     mainWindow.webContents.on('did-finish-load', () => {
-        initCacheDirectory();
+        initCacheDirectory().catch(error => console.error('初始化缩略图缓存目录失败:', error));
         runSmokeAssertions();
     });
 }
@@ -293,18 +296,6 @@ function copyFileIfMissing(sourceFile, targetFile) {
     return true;
 }
 
-function migrateLegacyCacheDir(sourceDir, targetDir) {
-    const sourceCacheDir = path.join(sourceDir, 'fbx_cache');
-    const targetCacheDir = path.join(targetDir, 'fbx_cache');
-    if (!fs.existsSync(sourceCacheDir)) return;
-
-    fs.promises.cp(sourceCacheDir, targetCacheDir, {
-        recursive: true,
-        force: false,
-        errorOnExist: false
-    }).catch(error => console.error('迁移缩略图缓存失败:', error));
-}
-
 function migrateLegacyDataDir(targetDir) {
     if (!targetDir) return;
 
@@ -325,7 +316,6 @@ function migrateLegacyDataDir(targetDir) {
                     migratedCount++;
                 }
             }
-            migrateLegacyCacheDir(sourceDir, targetDir);
             if (migratedCount > 0) {
                 console.log(`Migrated ${migratedCount} data file(s) from ${sourceDir} to ${targetDir}`);
             }
@@ -369,10 +359,98 @@ function getDataDir() {
     return cachedDataDir;
 }
 
+function getDefaultThumbnailDataDir() {
+    if (process.env.PORTABLE_EXECUTABLE_DIR) {
+        return getPortableDataDir();
+    }
+
+    if (!app.isPackaged) {
+        return path.join(process.cwd(), 'FBX_Data');
+    }
+
+    return getPortableDataDir();
+}
+
+function getThumbnailCacheConfigPath() {
+    return path.join(getDataDir(), THUMBNAIL_CACHE_CONFIG_NAME);
+}
+
+function loadConfiguredThumbnailDataDir() {
+    try {
+        const configPath = getThumbnailCacheConfigPath();
+        if (!fs.existsSync(configPath)) return null;
+
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        const dataDir = config && typeof config.dataDir === 'string' ? config.dataDir : '';
+        return dataDir && canWriteDirectory(dataDir) ? dataDir : null;
+    } catch (error) {
+        console.error('读取缩略图缓存目录配置失败:', error);
+        return null;
+    }
+}
+
+function saveConfiguredThumbnailDataDir(dataDir) {
+    try {
+        const configPath = getThumbnailCacheConfigPath();
+        fs.writeFileSync(configPath, JSON.stringify({ dataDir }, null, 2), 'utf8');
+    } catch (error) {
+        console.error('保存缩略图缓存目录配置失败:', error);
+    }
+}
+
+async function promptForThumbnailDataDir() {
+    if (thumbnailCachePromptedThisSession || !mainWindow) return null;
+    thumbnailCachePromptedThisSession = true;
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+        title: '选择缩略图缓存目录',
+        message: '软件目录无法写入缩略图缓存，请选择一个用于存放 FBX_Data 的目录。',
+        buttonLabel: '使用此文件夹',
+        properties: ['openDirectory', 'createDirectory']
+    });
+
+    if (result.canceled || !result.filePaths || !result.filePaths[0]) return null;
+
+    const selectedRoot = result.filePaths[0];
+    const selectedDataDir = path.basename(selectedRoot).toLowerCase() === 'fbx_data'
+        ? selectedRoot
+        : path.join(selectedRoot, 'FBX_Data');
+    if (!canWriteDirectory(selectedDataDir)) return null;
+    saveConfiguredThumbnailDataDir(selectedDataDir);
+    return selectedDataDir;
+}
+
+async function getThumbnailDataDir() {
+    if (cachedThumbnailDataDir) return cachedThumbnailDataDir;
+
+    const defaultDataDir = getDefaultThumbnailDataDir();
+    if (canWriteDirectory(defaultDataDir)) {
+        cachedThumbnailDataDir = defaultDataDir;
+        return cachedThumbnailDataDir;
+    }
+
+    const configuredDataDir = loadConfiguredThumbnailDataDir();
+    if (configuredDataDir) {
+        cachedThumbnailDataDir = configuredDataDir;
+        return cachedThumbnailDataDir;
+    }
+
+    const selectedDataDir = await promptForThumbnailDataDir();
+    if (selectedDataDir) {
+        cachedThumbnailDataDir = selectedDataDir;
+        return cachedThumbnailDataDir;
+    }
+
+    console.warn('缩略图缓存目录不可用，本次运行将跳过缩略图磁盘缓存。');
+    return null;
+}
+
 // 初始化缓存目录
-function initCacheDirectory() {
-    // 🟢 缓存也放进 Data 目录
-    const cacheDir = path.join(getDataDir(), 'fbx_cache');
+async function initCacheDirectory() {
+    const thumbnailDataDir = await getThumbnailDataDir();
+    if (!thumbnailDataDir) return;
+
+    const cacheDir = path.join(thumbnailDataDir, 'fbx_cache');
     try {
         if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
         // ...剩下的代码保持不变...
@@ -386,9 +464,11 @@ function initCacheDirectory() {
 }
 
 // 统一的路径 Hash 算法
-function getCachePath(filePath, mtime) {
-    // 🟢 这里也要改
-    const cacheDir = path.join(getDataDir(), 'fbx_cache');
+async function getCachePath(filePath, mtime) {
+    const thumbnailDataDir = await getThumbnailDataDir();
+    if (!thumbnailDataDir) return null;
+
+    const cacheDir = path.join(thumbnailDataDir, 'fbx_cache');
     
     const safePath = path.resolve(filePath).toLowerCase(); 
     const safeTime = Math.floor(mtime);
@@ -676,7 +756,10 @@ ipcMain.handle('create-local-file-url', async (event, filePath) => {
 
 ipcMain.handle('check-thumbnail', async (event, filePath, mtime) => {
     try {
-        const { file } = getCachePath(filePath, mtime);
+        const cachePath = await getCachePath(filePath, mtime);
+        if (!cachePath) return null;
+
+        const { file } = cachePath;
         if (fs.existsSync(file)) {
             const bitmap = fs.readFileSync(file);
             if (bitmap.length > 0) {
@@ -689,9 +772,12 @@ ipcMain.handle('check-thumbnail', async (event, filePath, mtime) => {
 
 ipcMain.handle('save-thumbnail', async (event, filePath, mtime, dataUrl) => {
     try {
-        if (!filePath || !dataUrl) return;
+        if (!filePath || !dataUrl) return false;
         
-        const { dir, file } = getCachePath(filePath, mtime);
+        const cachePath = await getCachePath(filePath, mtime);
+        if (!cachePath) return false;
+
+        const { dir, file } = cachePath;
         
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
@@ -699,8 +785,10 @@ ipcMain.handle('save-thumbnail', async (event, filePath, mtime, dataUrl) => {
         const buffer = Buffer.from(base64Data, 'base64');
 
         fs.writeFileSync(file, buffer);
+        return true;
     } catch (e) { 
         console.error("Write Failed:", e); 
+        return false;
     }
 });
 
