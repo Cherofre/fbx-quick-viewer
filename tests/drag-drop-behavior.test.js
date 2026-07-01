@@ -15,7 +15,7 @@ function assertContains(source, text, label) {
 }
 
 assert.strictEqual(packageJson.version, '1.0.4', 'package version should be bumped for the new release');
-assert.strictEqual(packageJson.scripts.test, 'node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js', 'npm test should run the regression suites');
+assert.strictEqual(packageJson.scripts.test, 'node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js && node tests/electron-smoke.test.js', 'npm test should run the regression suites');
 
 assertContains(mainJs, "ipcMain.handle('get-file-info'", 'main process');
 
@@ -38,8 +38,9 @@ assertContains(indexHtml, '缩略图正在生成中，请等待当前队列完�
 assertContains(indexHtml, 'new IntersectionObserver', 'renderer');
 assertContains(indexHtml, '生成前 300', 'renderer');
 assertContains(indexHtml, '生成全部', 'renderer');
-assertContains(indexHtml, 'function loadModel(identifier, options = {})', 'renderer');
+assertContains(indexHtml, 'async function loadModel(identifier, options = {})', 'renderer');
 assertContains(indexHtml, 'options.absolutePath', 'renderer');
+assertContains(indexHtml, "ipcRenderer.invoke('create-local-file-url'", 'renderer');
 
 const dropHandlerStart = indexHtml.indexOf("container.addEventListener('drop'");
 assert(dropHandlerStart !== -1, 'drop handler should exist');

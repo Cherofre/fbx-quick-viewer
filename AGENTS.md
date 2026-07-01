@@ -2,6 +2,35 @@
 
 这份文件用于约束 Coding AI 在进行新功能开发、修复问题、准备新版本时的默认工作方式。
 
+## 项目速览
+
+- 项目类型：Electron + Three.js 的 Windows 本地 FBX 预览工具。
+- 入口文件：`main.js` 是 Electron 主进程，`index.html` 承载主要界面和渲染层逻辑。
+- 本地库文件：`libs/` 下保存 Three.js、FBXLoader、OrbitControls 以及贴图加载器等前端依赖。
+- 当前版本号以 `package.json` 为准，当前为 `1.0.4`。
+- 运行环境：Node.js 18+、npm、Windows。
+
+## 常用命令
+
+```bash
+npm install
+npm start
+npm run pack
+npm run dist
+```
+
+- `npm start`：开发运行 Electron 应用。
+- `npm run pack`：生成未安装的可执行目录。
+- `npm run dist`：通过 electron-builder 生成 Windows 安装包和便携版。
+- 当前已配置 `npm test`，会运行拖入 FBX、v1.0.4 功能约束和 Electron 启动 smoke 检查；完成修改后仍应按风险补充 `npm run pack` 或手动验证。
+
+## 本项目注意事项
+
+- 不要提交 `node_modules/`、`dist/`、`FBX_Data/`、`fbx_cache/` 或日志/临时文件。
+- `FBX_Data` 是运行期数据目录，用于收藏、缩略图缓存、UV 元数据缓存和窗口状态。
+- 修改 `index.html` 时注意它包含大量渲染层逻辑，尽量保持变更聚焦并手动验证关键 UI 流程。
+- 修改 `libs/` 中第三方库前，先确认是否确实需要改 vendored 文件。
+
 目标：
 
 1. 不直接在 `main` 上开发

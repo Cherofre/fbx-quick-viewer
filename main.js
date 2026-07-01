@@ -1,13 +1,30 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const https = require('https');
-
-process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
+const { pathToFileURL } = require('url');
 
 let mainWindow;
 let cachedDataDir = null;
+let activeScan = null;
+const LOCAL_FILE_SCHEME = 'fbx-local';
+const ALLOWED_LOCAL_FILE_EXTENSIONS = new Set(['.fbx', '.png', '.jpg', '.jpeg', '.bmp', '.gif', '.dds', '.tga']);
+const localFileTokens = new Map();
+const localFilePathToToken = new Map();
+
+protocol.registerSchemesAsPrivileged([
+    {
+        scheme: LOCAL_FILE_SCHEME,
+        privileges: {
+            standard: true,
+            secure: true,
+            supportFetchAPI: true,
+            corsEnabled: true,
+            stream: true
+        }
+    }
+]);
 
 // --- 新增：获取窗口配置文件路径 ---
 function getWindowStatePath() {
@@ -56,6 +73,7 @@ function loadWindowState() {
 function createWindow() {
     // 1. 加载保存的状态
     const state = loadWindowState();
+    const shouldShowWindow = process.env.FBX_QUICK_VIEWER_SMOKE !== '1';
 
     // 2. 使用保存的宽、高、位置创建窗口
     mainWindow = new BrowserWindow({
@@ -64,7 +82,12 @@ function createWindow() {
         x: state.x, // 如果 undefined，Electron 会自动居中
         y: state.y,
         title: "FBX 快速预览器",
-        webPreferences: { nodeIntegration: true, contextIsolation: false, webSecurity: false },
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            nodeIntegration: false,
+            contextIsolation: true,
+            webSecurity: true
+        },
         show: false // 先隐藏，设置好最大化状态后再显示，避免闪烁
     });
 
@@ -74,10 +97,24 @@ function createWindow() {
     }
     
     // 准备好后再显示窗口
-    mainWindow.show();
+    if (shouldShowWindow) mainWindow.show();
 
     mainWindow.setMenu(null);
     mainWindow.loadFile(path.join(__dirname, 'index.html'));
+
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        if (isAllowedExternalUrl(url)) {
+            shell.openExternal(url).catch(error => console.error('打开外部链接失败:', error));
+        }
+        return { action: 'deny' };
+    });
+
+    mainWindow.webContents.on('will-navigate', (event, url) => {
+        const targetUrl = String(url || '');
+        if (targetUrl && targetUrl !== mainWindow.webContents.getURL()) {
+            event.preventDefault();
+        }
+    });
     
     // 打开开发者工具（可选）
     // mainWindow.webContents.openDevTools();
@@ -89,10 +126,90 @@ function createWindow() {
 
     mainWindow.webContents.on('did-finish-load', () => {
         initCacheDirectory();
+        runSmokeAssertions();
     });
 }
 
-app.whenReady().then(createWindow);
+function runSmokeAssertions() {
+    if (process.env.FBX_QUICK_VIEWER_SMOKE !== '1' || !mainWindow) return;
+
+    const smokeFilePath = JSON.stringify(process.env.FBX_QUICK_VIEWER_SMOKE_FILE || '');
+    mainWindow.webContents.executeJavaScript(`
+        (async () => {
+            if (!window.electronAPI || !window.electronAPI.invoke || !window.pathAPI || !window.pathAPI.join) {
+                return { ok: false, reason: 'preload APIs are not available in renderer' };
+            }
+
+            const smokeFile = ${smokeFilePath};
+            if (smokeFile) {
+                const localUrl = await window.electronAPI.invoke('create-local-file-url', smokeFile);
+                if (!localUrl || !localUrl.startsWith('${LOCAL_FILE_SCHEME}://')) {
+                    return { ok: false, reason: 'local file URL was not created' };
+                }
+
+                const response = await fetch(localUrl);
+                const body = await response.text();
+                if (!response.ok || !body.includes('SMOKE_LOCAL_FILE')) {
+                    return { ok: false, reason: 'local file protocol did not return smoke content' };
+                }
+            }
+
+            return { ok: true };
+        })()
+    `).then(result => {
+        if (!result || !result.ok) {
+            console.error('Smoke check failed:', result && result.reason ? result.reason : result);
+            app.exit(1);
+            return;
+        }
+        console.log('Smoke check passed: preload APIs and local file protocol are available');
+        app.exit(0);
+    }).catch(error => {
+        console.error('Smoke check failed:', error);
+        app.exit(1);
+    });
+}
+
+function registerLocalFileProtocol() {
+    protocol.handle(LOCAL_FILE_SCHEME, async (request) => {
+        try {
+            const parsed = new URL(request.url);
+            if (parsed.hostname !== 'file') return new Response('Not found', { status: 404 });
+
+            const parts = parsed.pathname.split('/').filter(Boolean).map(part => decodeURIComponent(part));
+            const token = parts.shift();
+            const record = token ? localFileTokens.get(token) : null;
+            if (!record) {
+                return new Response('Not found', { status: 404 });
+            }
+
+            let targetPath = record.filePath;
+            const relativeResourcePath = parts.join(path.sep);
+            if (relativeResourcePath && relativeResourcePath !== path.basename(record.filePath)) {
+                const baseDir = path.dirname(record.filePath);
+                const candidatePath = path.resolve(baseDir, relativeResourcePath);
+                if (!isPathInsideDirectory(candidatePath, baseDir)) {
+                    return new Response('Forbidden', { status: 403 });
+                }
+                targetPath = candidatePath;
+            }
+
+            if (!isAllowedLocalFilePath(targetPath)) {
+                return new Response('Not found', { status: 404 });
+            }
+
+            return net.fetch(pathToFileURL(targetPath).toString());
+        } catch (error) {
+            console.error('本地文件协议读取失败:', error);
+            return new Response('Local file error', { status: 500 });
+        }
+    });
+}
+
+app.whenReady().then(() => {
+    registerLocalFileProtocol();
+    createWindow();
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 // 获取真实 EXE 所在目录 (保持原样)
@@ -118,6 +235,106 @@ function getPortableDataDir() {
     return path.join(getRealExeDir(), 'FBX_Data');
 }
 
+function isAllowedLocalFilePath(filePath) {
+    try {
+        if (!filePath || typeof filePath !== 'string') return false;
+        const resolvedPath = path.resolve(filePath);
+        const ext = path.extname(resolvedPath).toLowerCase();
+        if (!ALLOWED_LOCAL_FILE_EXTENSIONS.has(ext)) return false;
+        const stat = fs.statSync(resolvedPath);
+        return stat.isFile();
+    } catch (error) {
+        return false;
+    }
+}
+
+function createLocalFileUrl(filePath) {
+    if (!isAllowedLocalFilePath(filePath)) return '';
+
+    const resolvedPath = path.resolve(filePath);
+    const pathKey = resolvedPath.toLowerCase();
+    let token = localFilePathToToken.get(pathKey);
+
+    if (!token) {
+        token = crypto.randomUUID();
+        localFilePathToToken.set(pathKey, token);
+    }
+
+    localFileTokens.set(token, {
+        filePath: resolvedPath,
+        updatedAt: Date.now()
+    });
+
+    const displayName = encodeURIComponent(path.basename(resolvedPath));
+    return `${LOCAL_FILE_SCHEME}://file/${token}/${displayName}`;
+}
+
+function isTrustedSender(event) {
+    return !!mainWindow && event && event.sender === mainWindow.webContents;
+}
+
+function isPathInsideDirectory(candidatePath, parentDir) {
+    const relativePath = path.relative(parentDir, candidatePath);
+    return relativePath === '' || (!!relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
+
+function isSameDirectory(a, b) {
+    try {
+        return path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+    } catch (error) {
+        return false;
+    }
+}
+
+function copyFileIfMissing(sourceFile, targetFile) {
+    if (!fs.existsSync(sourceFile) || fs.existsSync(targetFile)) return false;
+    fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+    fs.copyFileSync(sourceFile, targetFile);
+    return true;
+}
+
+function migrateLegacyCacheDir(sourceDir, targetDir) {
+    const sourceCacheDir = path.join(sourceDir, 'fbx_cache');
+    const targetCacheDir = path.join(targetDir, 'fbx_cache');
+    if (!fs.existsSync(sourceCacheDir)) return;
+
+    fs.promises.cp(sourceCacheDir, targetCacheDir, {
+        recursive: true,
+        force: false,
+        errorOnExist: false
+    }).catch(error => console.error('迁移缩略图缓存失败:', error));
+}
+
+function migrateLegacyDataDir(targetDir) {
+    if (!targetDir) return;
+
+    const legacyDirs = [
+        getPortableDataDir(),
+        path.join(process.cwd(), 'FBX_Data')
+    ];
+    const migratedFiles = ['favorites.json', 'uv-metadata.json', 'window-state.json'];
+
+    for (const sourceDir of legacyDirs) {
+        if (!sourceDir || isSameDirectory(sourceDir, targetDir) || !fs.existsSync(sourceDir)) continue;
+
+        try {
+            let migratedCount = 0;
+            fs.mkdirSync(targetDir, { recursive: true });
+            for (const fileName of migratedFiles) {
+                if (copyFileIfMissing(path.join(sourceDir, fileName), path.join(targetDir, fileName))) {
+                    migratedCount++;
+                }
+            }
+            migrateLegacyCacheDir(sourceDir, targetDir);
+            if (migratedCount > 0) {
+                console.log(`Migrated ${migratedCount} data file(s) from ${sourceDir} to ${targetDir}`);
+            }
+        } catch (error) {
+            console.error('迁移旧数据目录失败:', error);
+        }
+    }
+}
+
 // 🟢 新增：获取统一的数据存储目录 (Data 文件夹)
 function getDataDir() {
     if (cachedDataDir) return cachedDataDir;
@@ -137,6 +354,7 @@ function getDataDir() {
     for (const dataPath of preferredPaths) {
         if (canWriteDirectory(dataPath)) {
             cachedDataDir = dataPath;
+            migrateLegacyDataDir(cachedDataDir);
             return cachedDataDir;
         }
     }
@@ -147,6 +365,7 @@ function getDataDir() {
     } catch (e) {
         console.error("创建数据文件夹失败:", e);
     }
+    migrateLegacyDataDir(cachedDataDir);
     return cachedDataDir;
 }
 
@@ -317,54 +536,118 @@ ipcMain.handle('save-uv-metadata', async (event, cacheData) => {
     }
 });
 
-// 递归扫描函数
-function getAllFbxFiles(dir, rootDir) {
-    let results = [];
-    try {
-        const list = fs.readdirSync(dir);
-        list.forEach(file => {
-            // 跳过系统文件夹和缓存目录
-            if (file === 'node_modules' || file.startsWith('.') || file === 'fbx_cache') return;
-            
-            const filePath = path.join(dir, file);
-            try {
-                const stat = fs.statSync(filePath);
-                if (stat && stat.isDirectory()) {
-                    // 递归进入子文件夹
-                    results = results.concat(getAllFbxFiles(filePath, rootDir));
-                } else {
-                    // 检查是否为 FBX 文件
-                    if (file.toLowerCase().endsWith('.fbx')) {
-                        // 🟢 关键修复：强制把反斜杠 \ 替换为正斜杠 /，解决 JSON 存储路径问题
+const SKIPPED_SCAN_ENTRIES = new Set(['node_modules', 'fbx_cache']);
+const SCAN_PROGRESS_INTERVAL_MS = 120;
+const SCAN_YIELD_INTERVAL = 100;
+
+function shouldSkipScanEntry(name) {
+    return SKIPPED_SCAN_ENTRIES.has(name) || String(name || '').startsWith('.');
+}
+
+async function yieldToEventLoop() {
+    return new Promise(resolve => setImmediate(resolve));
+}
+
+function sendScanProgress(event, scanState, currentDir, force = false) {
+    if (!event || !event.sender || event.sender.isDestroyed()) return;
+
+    const now = Date.now();
+    if (!force && now - scanState.lastProgressAt < SCAN_PROGRESS_INTERVAL_MS) return;
+
+    scanState.lastProgressAt = now;
+    event.sender.send('scan-progress', {
+        requestId: scanState.requestId,
+        processedCount: scanState.processedCount,
+        foundCount: scanState.foundCount,
+        currentDir,
+        canceled: scanState.canceled
+    });
+}
+
+async function getAllFbxFilesAsync(dir, rootDir, scanState, event) {
+    const results = [];
+    const pendingDirs = [dir];
+
+    while (pendingDirs.length > 0 && !scanState.canceled) {
+        const currentDir = pendingDirs.pop();
+        let entries;
+
+        try {
+            entries = await fs.promises.readdir(currentDir, { withFileTypes: true });
+        } catch (error) {
+            continue;
+        }
+
+        for (const entry of entries) {
+            if (scanState.canceled) break;
+            if (shouldSkipScanEntry(entry.name)) continue;
+
+            const filePath = path.join(currentDir, entry.name);
+            scanState.processedCount++;
+
+            if (entry.isDirectory()) {
+                pendingDirs.push(filePath);
+            } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.fbx')) {
+                try {
+                    const stat = await fs.promises.stat(filePath);
+                    if (stat && stat.isFile()) {
                         const relPath = path.relative(rootDir, filePath).replace(/\\/g, '/');
-                        
                         results.push({
                             relativePath: relPath,
-                            fullPath: filePath, 
+                            fullPath: filePath,
                             mtime: stat.mtimeMs,
-                            name: file
+                            name: entry.name
                         });
+                        scanState.foundCount++;
                     }
+                } catch (error) {
+                    // 忽略单个文件的权限或读取错误，继续扫描其它文件。
                 }
-            } catch (err) {
-                // 忽略单个文件的权限错误
             }
-        });
-    } catch (e) {
-        // 忽略文件夹读取错误
+
+            if (scanState.processedCount % SCAN_YIELD_INTERVAL === 0) {
+                sendScanProgress(event, scanState, currentDir);
+                await yieldToEventLoop();
+            }
+        }
+
+        sendScanProgress(event, scanState, currentDir);
+        await yieldToEventLoop();
     }
+
+    sendScanProgress(event, scanState, rootDir, true);
     return results;
 }
 
-ipcMain.handle('scan-folder', async (event, customPath) => {
+ipcMain.handle('cancel-scan', async () => {
+    if (!activeScan) return false;
+    activeScan.canceled = true;
+    return true;
+});
+
+ipcMain.handle('scan-folder', async (event, customPath, requestId) => {
+    let scanState = null;
     try {
         // 🔴 修复：如果是首次启动(没有路径)，直接返回空，防止 fs.readdirSync 报错炸掉程序
         if (!customPath) return { path: "", files: [] };
-        
-        return { path: customPath, files: getAllFbxFiles(customPath, customPath) };
+
+        if (activeScan) activeScan.canceled = true;
+        scanState = {
+            requestId,
+            canceled: false,
+            processedCount: 0,
+            foundCount: 0,
+            lastProgressAt: 0
+        };
+        activeScan = scanState;
+
+        const files = await getAllFbxFilesAsync(customPath, customPath, scanState, event);
+        return { path: customPath, files, canceled: scanState.canceled, requestId };
     } catch (error) { 
         console.error("Scan error:", error); // 最好打印一下错误
         return { path: "", files: [], error: error.message }; 
+    } finally {
+        if (activeScan === scanState) activeScan = null;
     }
 });
 
@@ -384,6 +667,11 @@ ipcMain.handle('get-file-info', async (event, filePath) => {
         console.error("File info error:", error);
         return null;
     }
+});
+
+ipcMain.handle('create-local-file-url', async (event, filePath) => {
+    if (!isTrustedSender(event)) return '';
+    return createLocalFileUrl(filePath);
 });
 
 ipcMain.handle('check-thumbnail', async (event, filePath, mtime) => {
@@ -474,4 +762,12 @@ ipcMain.handle('open-folder-dialog', async () => {
 
 ipcMain.handle('reveal-in-explorer', (event, fullPath) => {
     if (fullPath) shell.showItemInFolder(fullPath);
+});
+
+ipcMain.on('ondragstart', (event, fullPath) => {
+    if (!fullPath || !fs.existsSync(fullPath)) return;
+    event.sender.startDrag({
+        file: fullPath,
+        icon: path.join(__dirname, 'icon.png')
+    });
 });

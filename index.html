@@ -1289,12 +1289,13 @@
         let loadSequenceId = 0; 
         let currentNavMode = 'default';
         let temporaryDroppedFbxItem = null;
+        let activeScanRequestId = 0;
+        let isScanningFolder = false;
 
-        if (typeof require !== 'undefined') {
-            try {
-                const electron = require('electron'); ipcRenderer = electron.ipcRenderer; path = require('path');
-                if(ipcRenderer && path) isElectron = true;
-            } catch (e) { console.warn("Fallback to Web mode."); isElectron = false; }
+        if (window.electronAPI && window.pathAPI) {
+            ipcRenderer = window.electronAPI;
+            path = window.pathAPI;
+            isElectron = true;
         }
 
         if (!isElectron) {
@@ -1438,7 +1439,7 @@
             const progressEl = document.getElementById('progress-info');
             if (isGridView && !canAutoGenerateThumbnails && progressEl) {
                 renderThumbnailPauseControls(filtered.length);
-            } else if (progressEl && !isThumbProcessing) {
+            } else if (progressEl && !isThumbProcessing && !isScanningFolder) {
                 progressEl.innerText = "";
             }
             filtered.forEach((item, index) => {
@@ -1857,11 +1858,11 @@
             thumbLoader = new THREE.FBXLoader();
         }
 
-        function processThumbQueue() {
+        async function processThumbQueue() {
             // 1. 队列检查
             if(isThumbProcessing || !thumbQueue.length) { 
                 isThumbProcessing = false; 
-                document.getElementById('progress-info').innerText = "";
+                if (!isScanningFolder) document.getElementById('progress-info').innerText = "";
                 return; 
             }
             isThumbProcessing = true;
@@ -1883,11 +1884,28 @@
             if(!finalPath && isElectron && currentBasePath) {
                 finalPath = path.join(currentBasePath, item.relativePath);
             }
-            let url = isElectron ? finalPath : (webFileMap.get(item.relativePath) ? URL.createObjectURL(webFileMap.get(item.relativePath)) : "");
+            let url = "";
+            try {
+                url = isElectron
+                    ? await getLocalFileLoadUrl(finalPath)
+                    : (webFileMap.get(item.relativePath) ? URL.createObjectURL(webFileMap.get(item.relativePath)) : "");
+            } catch (error) {
+                console.error("创建缩略图加载 URL 失败:", error);
+                isThumbProcessing = false;
+                processThumbQueue();
+                return;
+            }
             
             if(!url) {
                 isThumbProcessing = false;
                 processThumbQueue();
+                return;
+            }
+
+            if(!isThumbnailTargetCurrent(id, item)) {
+                if(!isElectron) URL.revokeObjectURL(url);
+                isThumbProcessing = false;
+                setTimeout(processThumbQueue, 5);
                 return;
             }
             
@@ -2018,22 +2036,84 @@
 
         function refreshCurrentDirectory() { if (isElectron && currentBasePath) { scanFiles(currentBasePath); } }
 
+        async function getLocalFileLoadUrl(filePath) {
+            if (!isElectron) return filePath;
+            const localUrl = await ipcRenderer.invoke('create-local-file-url', filePath);
+            if (!localUrl) throw new Error(`无法创建本地文件加载 URL: ${filePath}`);
+            return localUrl;
+        }
+
+        function cancelCurrentScan() {
+            if (!isElectron || !isScanningFolder) return;
+            ipcRenderer.invoke('cancel-scan').catch(error => console.error("取消扫描失败:", error));
+            const progressEl = document.getElementById('progress-info');
+            if (progressEl) progressEl.innerText = "正在取消扫描...";
+        }
+
+        function updateScanProgress(processedCount, foundCount) {
+            const progressEl = document.getElementById('progress-info');
+            if (!progressEl) return;
+
+            const processed = Number(processedCount) || 0;
+            const found = Number(foundCount) || 0;
+            const label = processed > 0
+                ? `扫描中: 已检查 ${processed} 项，找到 ${found} 个 FBX`
+                : '扫描中...';
+            progressEl.innerText = label;
+
+            if (isScanningFolder) {
+                const cancelBtn = document.createElement('button');
+                cancelBtn.className = 'progress-action-btn';
+                cancelBtn.type = 'button';
+                cancelBtn.innerText = '取消';
+                cancelBtn.onclick = cancelCurrentScan;
+                progressEl.append(' ', cancelBtn);
+            }
+        }
+
         async function scanFiles(customPath) {
             if (!isElectron) return;
-            const result = await ipcRenderer.invoke('scan-folder', customPath);
-            currentBasePath = result.path;
-            temporaryDroppedFbxItem = null;
-            addToHistory(currentBasePath); 
-            document.getElementById('dir-name').innerText = currentBasePath.split(path.sep).pop() || "Root";
-            document.getElementById('file-count').innerText = result.files.length;
-            allFilesData = result.files.map(f => {
-                const item = typeof f === 'string'
-                    ? { name: f, relativePath: f, date: 0 }
-                    : { name: f.name, relativePath: f.relativePath, fullPath: f.fullPath, date: f.mtime };
-                hydrateItemUVMetadata(item);
-                return item;
-            });
-            renderFileList();
+            const scanRequestId = ++activeScanRequestId;
+            isScanningFolder = true;
+            updateScanProgress(0, 0);
+
+            try {
+                const result = await ipcRenderer.invoke('scan-folder', customPath, scanRequestId);
+                if (scanRequestId !== activeScanRequestId) return;
+
+                const files = Array.isArray(result.files) ? result.files : [];
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
+                currentBasePath = result.path;
+                temporaryDroppedFbxItem = null;
+                addToHistory(currentBasePath);
+                document.getElementById('dir-name').innerText = currentBasePath.split(path.sep).pop() || "Root";
+                document.getElementById('file-count').innerText = files.length;
+                allFilesData = files.map(f => {
+                    const item = typeof f === 'string'
+                        ? { name: f, relativePath: f, date: 0 }
+                        : { name: f.name, relativePath: f.relativePath, fullPath: f.fullPath, date: f.mtime };
+                    hydrateItemUVMetadata(item);
+                    return item;
+                });
+                renderFileList();
+
+                const progressEl = document.getElementById('progress-info');
+                if (progressEl && !isThumbProcessing) {
+                    progressEl.innerText = result.canceled ? `扫描已取消，已加载 ${files.length} 个 FBX` : "";
+                }
+            } catch (error) {
+                if (scanRequestId !== activeScanRequestId) return;
+                console.error("扫描文件夹失败:", error);
+                const progressEl = document.getElementById('progress-info');
+                if (progressEl) progressEl.innerText = "扫描失败";
+            } finally {
+                if (scanRequestId === activeScanRequestId) {
+                    isScanningFolder = false;
+                }
+            }
         }
 
         function revealInExplorer() { if (isElectron && currentFullFilePath) ipcRenderer.invoke('reveal-in-explorer', currentFullFilePath); }
@@ -2183,6 +2263,12 @@
             initSidebarResize();
             setupDragAndDrop();
             loadConfig();
+            if (isElectron && window.electronAPI && typeof window.electronAPI.onScanProgress === 'function') {
+                window.electronAPI.onScanProgress(progress => {
+                    if (progress.requestId && progress.requestId !== activeScanRequestId) return;
+                    updateScanProgress(progress.processedCount, progress.foundCount);
+                });
+            }
             // 2. 🟢 关键：等待收藏数据加载完毕！
             // 只有等它读完 JSON，favoriteSet 里才有数据，后面的 renderFileList 才能正确显示星星
             await loadFavoritesData();
@@ -2444,12 +2530,16 @@
         }
 
         async function loadDroppedFbx(file) {
-            if (!isElectron || !file || !file.path) {
+            const filePath = isElectron && ipcRenderer && typeof ipcRenderer.getPathForFile === 'function'
+                ? ipcRenderer.getPathForFile(file)
+                : (file && file.path);
+
+            if (!isElectron || !file || !filePath) {
                 alert("当前环境不支持直接拖入本地 FBX 文件");
                 return;
             }
 
-            const info = await ipcRenderer.invoke('get-file-info', file.path);
+            const info = await ipcRenderer.invoke('get-file-info', filePath);
             if (!info) {
                 alert("无法读取拖入的 FBX 文件");
                 return;
@@ -2506,7 +2596,7 @@
             } else { btn.classList.remove('active-btn'); }
         }
 
-        function loadModel(identifier, options = {}) {
+        async function loadModel(identifier, options = {}) {
             const selectedItem = options.item || currentDisplayList[currentSelectedIndex];
             toggleUVWindow(false);
             if (isNormalsVisible) toggleNormals(); 
@@ -2516,13 +2606,36 @@
             const myLoadId = loadSequenceId;
 
             let loadUrl = ""; let displayPath = identifier;
-            if (isElectron && options.absolutePath) { loadUrl = options.absolutePath; displayPath = loadUrl; currentFullFilePath = loadUrl; }
-            else if (isElectron) { loadUrl = path.join(currentBasePath, identifier); displayPath = loadUrl; currentFullFilePath = loadUrl; }
-            else {
-                const fileObj = webFileMap.get(identifier);
-                if (fileObj) loadUrl = URL.createObjectURL(fileObj); else { loading.style.display = 'none'; return; }
-                currentFullFilePath = ""; 
+            try {
+                if (isElectron && options.absolutePath) {
+                    displayPath = options.absolutePath;
+                    currentFullFilePath = displayPath;
+                    loadUrl = await getLocalFileLoadUrl(displayPath);
+                }
+                else if (isElectron) {
+                    displayPath = path.join(currentBasePath, identifier);
+                    currentFullFilePath = displayPath;
+                    loadUrl = await getLocalFileLoadUrl(displayPath);
+                }
+                else {
+                    const fileObj = webFileMap.get(identifier);
+                    if (fileObj) loadUrl = URL.createObjectURL(fileObj); else { loading.style.display = 'none'; return; }
+                    currentFullFilePath = "";
+                }
+            } catch (error) {
+                if (myLoadId === loadSequenceId) {
+                    loading.style.display = 'none';
+                    alert("无法读取本地模型文件");
+                    console.error("创建模型加载 URL 失败:", error);
+                }
+                return;
             }
+
+            if (myLoadId !== loadSequenceId) {
+                if (!isElectron && loadUrl) URL.revokeObjectURL(loadUrl);
+                return;
+            }
+
             const pathSection = document.getElementById('selected-path-section');
             const pathInput = document.getElementById('selected-path-input');
             if(pathSection) pathSection.style.display = 'block'; if(pathInput) pathInput.value = displayPath;

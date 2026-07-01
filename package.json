@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js",
+    "test": "node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js && node tests/electron-smoke.test.js",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },
@@ -17,6 +17,15 @@
   },
   "build": {
     "appId": "com.viewer.fbx",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "icon.png",
+      "ViewCube.js",
+      "libs/**/*",
+      "package.json"
+    ],
     "win": {
       "target": [
         "nsis",
