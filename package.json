@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node tests/mesh-path-resolution.test.js && node tests/v1.0.5-uv-controls.test.js && node tests/v1.0.5-max-navigation.test.js && node tests/v1.0.5-discoverability.test.js && node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js && node tests/electron-smoke.test.js",
+    "test": "node tests/v1.0.5-auto-update.test.js && node tests/mesh-path-resolution.test.js && node tests/v1.0.5-uv-controls.test.js && node tests/v1.0.5-max-navigation.test.js && node tests/v1.0.5-discoverability.test.js && node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js && node tests/electron-smoke.test.js",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },
@@ -18,10 +18,14 @@
     "electron": "^43.1.0",
     "electron-builder": "^26.15.3"
   },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
   "build": {
     "appId": "com.viewer.fbx",
     "files": [
       "main.js",
+      "auto-update.js",
       "mesh-path.js",
       "preload.js",
       "index.html",
@@ -29,6 +33,13 @@
       "ViewCube.js",
       "libs/**/*",
       "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Cherofre",
+        "repo": "fbx-quick-viewer"
+      }
     ],
     "win": {
       "target": [
@@ -39,7 +50,13 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh",
+      "artifactName": "fbx-quick-viewer.Setup.${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "fbx-quick-viewer.${version}.${ext}"
     }
   }
 }

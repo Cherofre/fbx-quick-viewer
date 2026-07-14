@@ -22,7 +22,7 @@ npm run dist
 - `npm start`：开发运行 Electron 应用。
 - `npm run pack`：生成未安装的可执行目录。
 - `npm run dist`：通过 electron-builder 生成 Windows 安装包和便携版。
-- 当前已配置 `npm test`，会运行 `.mesh` 路径、UV 数值与撤销、3ds Max 操作模式、操作可发现性、FBX 拖入/拖出、v1.0.4 功能约束和 Electron 启动 smoke 检查；完成修改后仍应按风险补充 `npm run pack` 或手动验证。
+- 当前已配置 `npm test`，会运行安装版自动更新、`.mesh` 路径、UV 数值与撤销、3ds Max 操作模式、操作可发现性、FBX 拖入/拖出、v1.0.4 功能约束和 Electron 启动 smoke 检查；完成修改后仍应按风险补充 `npm run pack` 或手动验证。
 
 ## 本项目注意事项
 

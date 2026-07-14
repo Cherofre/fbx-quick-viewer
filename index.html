@@ -770,6 +770,53 @@
         .update-actions .primary { background: #0e639c; border-color: #007acc; }
         .update-actions .primary:hover { background: #1177bb; }
         .update-actions button:disabled { opacity: 0.45; cursor: default; }
+        #update-download-status {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            z-index: 1300;
+            display: none;
+            width: min(330px, calc(100vw - 32px));
+            padding: 10px 11px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            background: #252526;
+            color: #ddd;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.45);
+        }
+        #update-download-status.show { display: block; }
+        .update-download-head { display: flex; align-items: center; gap: 8px; }
+        #update-download-title { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: #f0f0f0; }
+        .update-download-close {
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            border: none;
+            border-radius: 3px;
+            background: transparent;
+            color: #999;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .update-download-close:hover,
+        .update-download-close:focus-visible { background: #444; color: #fff; outline: 1px solid #007acc; }
+        #update-download-detail { margin-top: 4px; color: #aaa; font-size: 11px; line-height: 1.4; }
+        #update-progress-track { height: 4px; margin-top: 9px; overflow: hidden; border-radius: 2px; background: #444; }
+        #update-progress-bar { width: 0; height: 100%; background: #4fc1ff; transition: width 160ms ease-out; }
+        .update-download-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 9px; }
+        .update-download-actions button {
+            padding: 4px 8px;
+            border: 1px solid #555;
+            border-radius: 3px;
+            background: #383838;
+            color: #ddd;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        .update-download-actions button:hover,
+        .update-download-actions button:focus-visible { background: #4a4a4a; outline: 1px solid #007acc; }
+        .update-download-actions .primary { background: #0e639c; border-color: #007acc; color: #fff; }
+        .update-download-actions .primary:hover { background: #1177bb; }
         .setup-content { padding: 8px 14px 12px; }
         .setup-row { display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid #3d3d3d; }
         .setup-row:last-child { border-bottom: none; }
@@ -856,7 +903,8 @@
             .toast,
             .max-field .scrub-label::after,
             #controls .max-field .uv-reset-btn,
-            #search-input { transition: none; }
+            #search-input,
+            #update-progress-bar { transition: none; }
         }
 
     </style>
@@ -911,10 +959,23 @@
             <pre id="update-release-notes"></pre>
         </div>
         <div class="update-actions">
-            <button type="button" onclick="closeUpdateDialog()">稍后</button>
-            <button id="open-update-page-btn" class="primary" type="button" onclick="openUpdatePage()">打开发布页</button>
+            <button type="button" onclick="closeUpdateDialog()">继续使用</button>
+            <button id="update-primary-btn" class="primary" type="button" onclick="handleUpdatePrimaryAction()">打开发布页</button>
         </div>
     </dialog>
+
+    <div id="update-download-status" role="status" aria-live="polite" aria-atomic="true">
+        <div class="update-download-head">
+            <span id="update-download-title">正在后台下载更新</span>
+            <button class="update-download-close" type="button" onclick="dismissUpdateDownloadStatus()" aria-label="隐藏更新进度" title="隐藏">×</button>
+        </div>
+        <div id="update-download-detail">可以继续使用软件。</div>
+        <div id="update-progress-track" aria-hidden="true"><div id="update-progress-bar"></div></div>
+        <div class="update-download-actions">
+            <button id="update-status-details-btn" type="button" onclick="showCurrentUpdateDetails()">查看说明</button>
+            <button id="update-status-action-btn" class="primary" type="button" onclick="handleUpdatePrimaryAction()" style="display:none">重启安装</button>
+        </div>
+    </div>
 
     <dialog id="first-run-dialog" aria-labelledby="first-run-title">
         <div class="help-header">
@@ -1714,6 +1775,9 @@
         let activeCoachmark = null;
         const coachmarkQueue = [];
         let pendingUpdateUrl = '';
+        let latestUpdateResult = null;
+        let latestUpdateStatus = { supported: false, status: 'idle', percent: 0 };
+        let updateStatusDismissed = false;
         let preferenceDialogRequired = false;
         let preferenceDialogResolver = null;
 
@@ -1733,17 +1797,129 @@
             if (dialog && dialog.open) dialog.close();
         }
 
+        function formatUpdateBytes(value) {
+            const bytes = Number(value) || 0;
+            if (bytes <= 0) return '0 MB';
+            if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+        }
+
+        function dismissUpdateDownloadStatus() {
+            updateStatusDismissed = true;
+            document.getElementById('update-download-status')?.classList.remove('show');
+        }
+
+        function showCurrentUpdateDetails() {
+            if (latestUpdateResult) showUpdateDialog(latestUpdateResult);
+        }
+
+        function renderUpdateDownloadStatus() {
+            const panel = document.getElementById('update-download-status');
+            const title = document.getElementById('update-download-title');
+            const detail = document.getElementById('update-download-detail');
+            const progressTrack = document.getElementById('update-progress-track');
+            const progressBar = document.getElementById('update-progress-bar');
+            const detailsButton = document.getElementById('update-status-details-btn');
+            const actionButton = document.getElementById('update-status-action-btn');
+            if (!panel || !title || !detail || !progressTrack || !progressBar || !detailsButton || !actionButton) return;
+
+            const status = latestUpdateStatus.status || 'idle';
+            const hasKnownUpdate = !!(latestUpdateResult && latestUpdateResult.updateAvailable);
+            if (!latestUpdateStatus.supported || status === 'idle' || status === 'unsupported' || (status === 'checking' && !hasKnownUpdate)) {
+                panel.classList.remove('show');
+                return;
+            }
+            if (updateStatusDismissed && status !== 'downloaded' && status !== 'error') {
+                panel.classList.remove('show');
+                return;
+            }
+
+            const version = latestUpdateStatus.version || latestUpdateResult?.latestVersion || '';
+            const percent = Math.max(0, Math.min(100, Number(latestUpdateStatus.percent) || 0));
+            detailsButton.style.display = latestUpdateResult ? '' : 'none';
+            actionButton.style.display = 'none';
+            progressTrack.style.display = '';
+            progressBar.style.width = `${percent}%`;
+
+            if (status === 'downloaded') {
+                updateStatusDismissed = false;
+                title.textContent = `更新 ${version} 已下载`;
+                detail.textContent = '重启后覆盖当前安装目录，收藏、设置和缓存会保留。';
+                progressBar.style.width = '100%';
+                actionButton.textContent = '重启安装';
+                actionButton.style.display = '';
+            } else if (status === 'error') {
+                updateStatusDismissed = false;
+                title.textContent = '自动下载失败';
+                detail.textContent = '可以继续使用软件，或改为打开发布页手动下载。';
+                progressTrack.style.display = 'none';
+                actionButton.textContent = '打开下载页';
+                actionButton.style.display = '';
+            } else if (status === 'checking') {
+                title.textContent = '正在准备后台下载';
+                detail.textContent = '可以继续使用软件。';
+            } else {
+                title.textContent = `正在后台下载 ${version}`;
+                const transferred = formatUpdateBytes(latestUpdateStatus.transferred);
+                const total = formatUpdateBytes(latestUpdateStatus.total);
+                const speed = latestUpdateStatus.bytesPerSecond > 0
+                    ? ` · ${formatUpdateBytes(latestUpdateStatus.bytesPerSecond)}/s`
+                    : '';
+                detail.textContent = `${percent.toFixed(0)}% · ${transferred} / ${total}${speed}，可以继续使用软件。`;
+            }
+
+            panel.classList.add('show');
+        }
+
+        function handleAutoUpdateStatus(status) {
+            latestUpdateStatus = { ...latestUpdateStatus, ...(status || {}) };
+            renderUpdateDownloadStatus();
+            syncUpdateDialogAction();
+        }
+
+        function syncUpdateDialogAction() {
+            const button = document.getElementById('update-primary-btn');
+            if (!button) return;
+
+            const status = latestUpdateStatus.status || 'idle';
+            if (latestUpdateResult?.autoUpdateSupported && status === 'downloaded') {
+                button.textContent = '重启安装';
+                button.disabled = false;
+            } else if (latestUpdateResult?.autoUpdateSupported && (status === 'checking' || status === 'downloading')) {
+                button.textContent = '后台下载中';
+                button.disabled = true;
+            } else {
+                button.textContent = '打开发布页';
+                button.disabled = !pendingUpdateUrl;
+            }
+        }
+
         function showUpdateDialog(result) {
             const dialog = document.getElementById('update-dialog');
             if (!dialog) return;
 
+            latestUpdateResult = result;
             pendingUpdateUrl = result.releaseUrl || '';
             const publishedDate = result.publishedAt ? new Date(result.publishedAt).toLocaleDateString('zh-CN') : '日期未知';
             document.getElementById('update-dialog-title').textContent = `发现新版本 ${result.latestVersion}`;
             document.getElementById('update-meta').textContent = `当前版本 ${result.currentVersion} · 发布于 ${publishedDate}`;
             document.getElementById('update-release-notes').textContent = (result.releaseNotes || '').trim() || '此版本未提供更新说明。';
-            document.getElementById('open-update-page-btn').disabled = !pendingUpdateUrl;
-            if (!dialog.open) dialog.showModal();
+            syncUpdateDialogAction();
+            if (!dialog.open) dialog.show();
+        }
+
+        async function restartAndInstallUpdate() {
+            if (!isElectron) return;
+            const started = await ipcRenderer.invoke('install-downloaded-update');
+            if (!started) showToast('更新尚未下载完成', 'error');
+        }
+
+        async function handleUpdatePrimaryAction() {
+            if (latestUpdateResult?.autoUpdateSupported && latestUpdateStatus.status === 'downloaded') {
+                await restartAndInstallUpdate();
+                return;
+            }
+            await openUpdatePage();
         }
 
         async function openUpdatePage() {
@@ -2991,6 +3167,11 @@
                     updateScanProgress(progress.processedCount, progress.foundCount);
                 });
             }
+            if (isElectron && window.electronAPI && typeof window.electronAPI.onUpdateStatus === 'function') {
+                window.electronAPI.onUpdateStatus(handleAutoUpdateStatus);
+                const currentUpdateState = await ipcRenderer.invoke('get-update-state');
+                handleAutoUpdateStatus(currentUpdateState);
+            }
             // 2. 🟢 关键：等待收藏数据加载完毕！
             // 只有等它读完 JSON，favoriteSet 里才有数据，后面的 renderFileList 才能正确显示星星
             await loadFavoritesData();
@@ -3024,7 +3205,10 @@
                 }
 
                 if (result.updateAvailable) {
-                    showUpdateDialog(result);
+                    latestUpdateResult = result;
+                    pendingUpdateUrl = result.releaseUrl || '';
+                    if (result.updateState) handleAutoUpdateStatus(result.updateState);
+                    if (manual) showUpdateDialog(result);
                 } else if (manual) {
                     showToast(`当前已是最新版本：${result.currentVersion}`);
                 }

@@ -16,7 +16,7 @@ function assertContains(source, text, label) {
 }
 
 assert.strictEqual(packageJson.version, '1.0.5', 'package version should be bumped for the new release');
-assert.strictEqual(packageJson.scripts.test, 'node tests/mesh-path-resolution.test.js && node tests/v1.0.5-uv-controls.test.js && node tests/v1.0.5-max-navigation.test.js && node tests/v1.0.5-discoverability.test.js && node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js && node tests/electron-smoke.test.js', 'npm test should run the regression suites');
+assert.strictEqual(packageJson.scripts.test, 'node tests/v1.0.5-auto-update.test.js && node tests/mesh-path-resolution.test.js && node tests/v1.0.5-uv-controls.test.js && node tests/v1.0.5-max-navigation.test.js && node tests/v1.0.5-discoverability.test.js && node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js && node tests/electron-smoke.test.js', 'npm test should run the regression suites');
 assert(packageJson.build.files.includes('mesh-path.js'), 'mesh path resolver should be included in packaged builds');
 
 assertContains(mainJs, "ipcMain.handle('get-file-info'", 'main process');

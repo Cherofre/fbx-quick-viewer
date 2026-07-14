@@ -1,10 +1,12 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, nativeImage } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const https = require('https');
 const { pathToFileURL } = require('url');
 const { findRelatedMeshPath } = require('./mesh-path');
+const { createAutoUpdateController } = require('./auto-update');
 
 let mainWindow;
 let cachedDataDir = null;
@@ -12,6 +14,7 @@ let cachedThumbnailDataDir = null;
 let thumbnailCachePromptedThisSession = false;
 let activeScan = null;
 let dragIcon = null;
+let autoUpdateController = null;
 const LOCAL_FILE_SCHEME = 'fbx-local';
 const THUMBNAIL_CACHE_CONFIG_NAME = 'thumbnail-cache-dir.json';
 const ALLOWED_LOCAL_FILE_EXTENSIONS = new Set(['.fbx', '.png', '.jpg', '.jpeg', '.bmp', '.gif', '.dds', '.tga']);
@@ -263,6 +266,13 @@ function registerLocalFileProtocol() {
 app.whenReady().then(() => {
     registerLocalFileProtocol();
     createWindow();
+    autoUpdateController = createAutoUpdateController({
+        app,
+        autoUpdater,
+        onStatus: sendAutoUpdateStatus,
+        saveBeforeInstall: saveWindowState
+    });
+    autoUpdateController.setup();
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
@@ -639,6 +649,11 @@ function fetchLatestRelease() {
     });
 }
 
+function sendAutoUpdateStatus(status) {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return;
+    mainWindow.webContents.send('update-status', status);
+}
+
 ipcMain.handle('load-favorites', async () => {
     try {
         // 🟢 改为 Data 目录
@@ -865,22 +880,45 @@ ipcMain.handle('save-thumbnail', async (event, filePath, mtime, dataUrl) => {
     }
 });
 
-ipcMain.handle('check-for-updates', async () => {
+ipcMain.handle('check-for-updates', async event => {
+    if (!isTrustedSender(event)) {
+        return { ok: false, error: 'untrusted sender' };
+    }
+
     const currentVersion = app.getVersion();
 
     try {
         const release = await fetchLatestRelease();
         const latestVersion = normalizeVersion(release.tag_name || release.name);
+        const updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
+        const autoUpdateSupported = !!autoUpdateController && autoUpdateController.getState().supported;
+        let updateState = autoUpdateController
+            ? autoUpdateController.getState()
+            : { supported: false, status: 'unsupported' };
+        let autoUpdateError = '';
+
+        if (updateAvailable && autoUpdateSupported) {
+            try {
+                const updateCheck = await autoUpdateController.checkForUpdates();
+                updateState = updateCheck.state;
+            } catch (error) {
+                autoUpdateError = error && error.message ? error.message : String(error);
+                updateState = autoUpdateController.getState();
+            }
+        }
 
         return {
             ok: true,
             currentVersion,
             latestVersion,
-            updateAvailable: compareVersions(latestVersion, currentVersion) > 0,
+            updateAvailable,
             releaseName: release.name || release.tag_name || latestVersion,
             releaseUrl: release.html_url || '',
             publishedAt: release.published_at || '',
-            releaseNotes: String(release.body || '').slice(0, 12000)
+            releaseNotes: String(release.body || '').slice(0, 12000),
+            autoUpdateSupported,
+            autoUpdateError,
+            updateState
         };
     } catch (error) {
         return {
@@ -890,10 +928,28 @@ ipcMain.handle('check-for-updates', async () => {
             updateAvailable: false,
             releaseName: '',
             releaseUrl: '',
+            publishedAt: '',
             releaseNotes: '',
+            autoUpdateSupported: false,
+            autoUpdateError: '',
+            updateState: autoUpdateController
+                ? autoUpdateController.getState()
+                : { supported: false, status: 'unsupported' },
             error: error.message || String(error)
         };
     }
+});
+
+ipcMain.handle('get-update-state', event => {
+    if (!isTrustedSender(event) || !autoUpdateController) {
+        return { supported: false, status: 'unsupported' };
+    }
+    return autoUpdateController.getState();
+});
+
+ipcMain.handle('install-downloaded-update', event => {
+    if (!isTrustedSender(event) || !autoUpdateController) return false;
+    return autoUpdateController.installDownloadedUpdate();
 });
 
 function isAllowedExternalUrl(url) {

@@ -1,5 +1,19 @@
 ## Active Decisions
 
+### Add automatic downloads to the v1.0.5 installer
+
+- Status: active
+- Date: 2026-07-14
+- Decision: Replace the undownloaded v1.0.5 installer asset with a build that uses `electron-updater` for non-blocking background downloads. Portable builds remain manual-download only.
+- Reason: The user expects the installed application to download updates directly instead of only opening GitHub. Existing v1.0.5 release assets had zero downloads, so correcting the same release avoids leaving an obsolete installer in circulation.
+
+### Preserve the previous install location and data during updates
+
+- Status: active
+- Date: 2026-07-14
+- Decision: Keep the existing app identity and NSIS install mode so upgrades reuse the registered `InstallLocation`. Preserve AppData and move an install-adjacent `FBX_Data` to a same-volume backup before the old files are removed, then restore it after installation.
+- Reason: Users may install outside the default directory and may keep runtime cache beside the executable. Updates must not ask them to locate the old folder or discard existing data.
+
 ### Release the verified unsigned v1.0.5 artifacts
 
 - Status: active

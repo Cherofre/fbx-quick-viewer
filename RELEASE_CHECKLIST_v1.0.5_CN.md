@@ -16,9 +16,13 @@
 ## 最终产物
 
 - 安装版上传文件：`dist/fbx-quick-viewer.Setup.1.0.5.exe`
-- 安装版 SHA-256：`D454D4F98DECB04C9A39CB1A79DE2584645BC7DF7580EFF01F04AC52FB826D21`
+- 安装版 SHA-256：`CDBEF4EFF8EB60395CBFBE1BAFB2CAEAC8436B12A0EEB626CF4270C88C93BE01`
 - 便携版上传文件：`dist/fbx-quick-viewer.1.0.5.exe`
-- 便携版 SHA-256：`39F7CCD18726FA04CA4FCC3891DEBCD3D57AE2C22C465A695D527B69651E2731`
+- 便携版 SHA-256：`FCE9B48B334F2A5DF77DACADEDF380A3D5AE199ADC6A86BF385893FED6B008CE`
+- 自动更新元数据：`dist/latest.yml`
+- `latest.yml` SHA-256：`EC60EB3D21BD988A92FBB29E57198955905B37DA76EB4C674D97F4965E7F81DF`
+- 安装版 blockmap：`dist/fbx-quick-viewer.Setup.1.0.5.exe.blockmap`
+- blockmap SHA-256：`63258ABE3890CFA6D9ECC333E184C1F35B8BD29734D8057E465915690D268AD8`
 
 上传前重新计算哈希并与本清单核对；如果重新运行 `npm run dist`，必须同步更新这里和 `PROJECT_STATUS.md`。
 
@@ -37,6 +41,18 @@
 - [x] 上传安装版 `fbx-quick-viewer.Setup.1.0.5.exe`。
 - [x] 上传便携版 `fbx-quick-viewer.1.0.5.exe`。
 - [x] 核对文件大小、SHA-256、Windows 10/11 说明和未签名风险提示。
+
+## 自动更新替换
+
+- [x] 安装版集成 `electron-updater`，便携版明确排除自动覆盖。
+- [x] 后台下载显示百分比、大小和速度，状态条不阻塞主界面。
+- [x] 下载完成后由用户选择重启，使用静默安装并重新启动应用。
+- [x] NSIS 从旧版注册表 `InstallLocation` 复用原安装目录。
+- [x] AppData 保留，安装目录旁 `FBX_Data` 在升级期间临时保护并恢复。
+- [x] 生成并核对 `app-update.yml`、`latest.yml`、安装包和 blockmap。
+- [ ] 将自动更新修复提交并合并到 `master`，移动 `1.0.5` tag 到新的发布提交。
+- [ ] 替换 GitHub Release 的安装版和便携版，并新增 `latest.yml` 与 blockmap。
+- [ ] 核对四个远程附件的大小和 SHA-256。
 
 ## 发布后验证
 

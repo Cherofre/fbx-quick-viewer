@@ -19,7 +19,7 @@ function assertNotContains(source, text, label) {
 
 assert.strictEqual(packageJson.version, '1.0.5', 'package version should match the current release');
 assert.strictEqual(packageJson.author, 'Cherofre', 'package author should not use template metadata');
-assert.strictEqual(packageJson.scripts.test, 'node tests/mesh-path-resolution.test.js && node tests/v1.0.5-uv-controls.test.js && node tests/v1.0.5-max-navigation.test.js && node tests/v1.0.5-discoverability.test.js && node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js && node tests/electron-smoke.test.js', 'npm test should run regression and smoke suites');
+assert.strictEqual(packageJson.scripts.test, 'node tests/v1.0.5-auto-update.test.js && node tests/mesh-path-resolution.test.js && node tests/v1.0.5-uv-controls.test.js && node tests/v1.0.5-max-navigation.test.js && node tests/v1.0.5-discoverability.test.js && node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js && node tests/electron-smoke.test.js', 'npm test should run regression and smoke suites');
 assert(fs.existsSync(preloadJsPath), 'preload.js should exist for context-isolated renderer IPC');
 const preloadJs = fs.readFileSync(preloadJsPath, 'utf8');
 
@@ -52,6 +52,7 @@ assertContains(mainJs, 'contextIsolation: true', 'main process');
 assertContains(mainJs, 'webSecurity: true', 'main process');
 assertContains(mainJs, "backgroundThrottling: process.env.FBX_QUICK_VIEWER_SMOKE !== '1'", 'main process smoke rendering');
 assertContains(mainJs, "ipcMain.handle('check-for-updates'", 'main process');
+assertContains(mainJs, "ipcMain.handle('install-downloaded-update'", 'main process auto update install');
 assertContains(mainJs, "releaseNotes: String(release.body || '').slice(0, 12000)", 'main process release notes');
 assertContains(mainJs, "ipcMain.handle('open-external-url'", 'main process');
 assertContains(mainJs, "ipcMain.handle('load-uv-metadata'", 'main process');
@@ -66,6 +67,7 @@ assertContains(preloadJs, 'invoke(channel, ...args)', 'preload');
 assertContains(preloadJs, 'startFbxDrag(filePath)', 'preload');
 assertContains(preloadJs, "onScanProgress(callback)", 'preload');
 assertContains(preloadJs, "'create-local-file-url'", 'preload');
+assertContains(preloadJs, 'onUpdateStatus(callback)', 'preload auto update progress');
 
 assertContains(indexHtml, 'id="check-update-btn"', 'renderer');
 assertContains(indexHtml, 'async function checkForUpdates(manual)', 'renderer');

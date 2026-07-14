@@ -26,6 +26,8 @@ const allowedInvokeChannels = new Set([
     'check-thumbnail',
     'save-thumbnail',
     'check-for-updates',
+    'get-update-state',
+    'install-downloaded-update',
     'open-external-url',
     'open-folder-dialog',
     'reveal-in-explorer',
@@ -51,6 +53,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const listener = (_event, payload) => callback(payload || {});
         ipcRenderer.on('scan-progress', listener);
         return () => ipcRenderer.removeListener('scan-progress', listener);
+    },
+
+    onUpdateStatus(callback) {
+        if (typeof callback !== 'function') return () => {};
+        const listener = (_event, payload) => callback(payload || {});
+        ipcRenderer.on('update-status', listener);
+        return () => ipcRenderer.removeListener('update-status', listener);
     },
 
     getPathForFile(file) {

@@ -1,14 +1,14 @@
 ## Current Snapshot
 
 - Last Updated: 2026-07-14
-- Branch: `master`
-- Worktree: Clean after the v1.0.5 release and post-release ledger commit.
+- Branch: `fix/v1.0.5-auto-update`
+- Worktree: Dirty with the authorized v1.0.5 installer auto-update replacement.
 - Superpowers Phase: Not active for this release.
 - Superpowers Plan: None; existing plans describe earlier releases and features.
-- Goal: Ship v1.0.5 with reliable native FBX drag-out to 3ds Max from list and grid views.
-- Phase: v1.0.5 released.
-- Result: Native single-FBX drag-out is implemented for list and grid views with a 32×32 icon, trusted-sender validation, and file validation. File context menus and the selected-model path bar can copy a related same-name `.mesh` path. Discoverability includes a `?` / `F1` Chinese quick reference, first-run preferences, hover affordances, UV drag/reset cues, one-time hints, and toast feedback. The grid favorite/action layout, search placement, and search focus behavior are refined. Max navigation can switch between middle-button pan and Alt+middle rotate during an active drag. Update checks display GitHub Release notes safely as text.
-- Dependencies: Electron 43.1.0 and electron-builder 26.15.3; `npm audit` reports zero vulnerabilities.
+- Goal: Replace the undownloaded v1.0.5 installer with a build that supports non-blocking automatic downloads while preserving the old install directory and data.
+- Phase: Rebuilding and verifying the v1.0.5 release replacement.
+- Result: The installed build uses `electron-updater` to download future versions in the background with visible progress and a deferred restart action. Portable builds remain manual. NSIS keeps the registered 1.0.4 installation directory, preserves AppData, and protects an install-adjacent `FBX_Data` during replacement.
+- Dependencies: Electron 43.1.0, electron-builder 26.15.3, and electron-updater 6.8.9; `npm audit` reports zero vulnerabilities.
 - External verification: The user confirmed the packaged v1.0.5 drag-out behavior in a real 3ds Max workflow on 2026-07-14.
 
 ## Verification Evidence
@@ -33,9 +33,15 @@
 - Browser interaction simulation verified middle-button pan changes the controls target while preserving the camera offset, then pressing Alt during the same drag preserves the target and changes the camera offset for rotation.
 - Browser UI review verified first-run choices persist (`.mesh`, navigation mode, list/grid view, help), preferences reopen from a dedicated gear button, operation mode uses stable segmented controls, search is below sorting, the compact `M` button aligns with other path actions, and update release notes render in a bounded dialog.
 - Browser UI review verified changed UV values expose a compact `↶` reset action beside the persistent `↔` drag cue. The U field and row remain exactly `18px` before and after the reset action becomes visible, while the reserved button remains `16px`. Search focus uses a muted amber `rgb(169,143,73)` border, returns to `rgb(85,85,85)`, and moves focus to `BODY` after a canvas click.
-- Installer SHA-256: `D454D4F98DECB04C9A39CB1A79DE2584645BC7DF7580EFF01F04AC52FB826D21`.
-- Portable SHA-256: `39F7CCD18726FA04CA4FCC3891DEBCD3D57AE2C22C465A695D527B69651E2731`.
-- Release upload aliases: `dist/fbx-quick-viewer.Setup.1.0.5.exe` and `dist/fbx-quick-viewer.1.0.5.exe`, matching the v1.0.4 asset naming convention.
+- Auto-update unit checks verify installed/portable capability gating, background progress state, silent restart installation arguments, stable GitHub publish metadata, and data-preserving NSIS hooks.
+- Browser review at 1280×800 verified the bottom-right download progress and downloaded states do not block canvas interaction; update details use a non-modal dialog.
+- Packaged `app-update.yml` targets `Cherofre/fbx-quick-viewer`; generated `latest.yml` points to `fbx-quick-viewer.Setup.1.0.5.exe` and the installer blockmap is produced.
+- electron-builder's NSIS upgrade path reads HKCU/HKLM `InstallLocation` and assigns the previous directory to `$INSTDIR` before installing.
+- Final replacement packaged smoke exited with code `0` after `5.54` seconds.
+- Installer SHA-256: `CDBEF4EFF8EB60395CBFBE1BAFB2CAEAC8436B12A0EEB626CF4270C88C93BE01`.
+- Portable SHA-256: `FCE9B48B334F2A5DF77DACADEDF380A3D5AE199ADC6A86BF385893FED6B008CE`.
+- `latest.yml` SHA-256: `EC60EB3D21BD988A92FBB29E57198955905B37DA76EB4C674D97F4965E7F81DF`.
+- Installer blockmap SHA-256: `63258ABE3890CFA6D9ECC333E184C1F35B8BD29734D8057E465915690D268AD8`.
 
 ## Risks
 
