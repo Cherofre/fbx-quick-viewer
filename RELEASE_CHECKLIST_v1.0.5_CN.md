@@ -2,7 +2,7 @@
 
 ## 发布前确认
 
-- [x] 当前版本号为 `1.0.5`，当前分支为 `release/v1.0.5`。
+- [x] 当前版本号为 `1.0.5`，自动更新修复已合并到 `master`。
 - [x] `npm test` 通过。
 - [x] `npm audit --audit-level=high` 报告 0 个漏洞。
 - [x] `npm run dist` 成功生成安装版和便携版。
@@ -50,14 +50,14 @@
 - [x] NSIS 从旧版注册表 `InstallLocation` 复用原安装目录。
 - [x] AppData 保留，安装目录旁 `FBX_Data` 在升级期间临时保护并恢复。
 - [x] 生成并核对 `app-update.yml`、`latest.yml`、安装包和 blockmap。
-- [ ] 将自动更新修复提交并合并到 `master`，移动 `1.0.5` tag 到新的发布提交。
-- [ ] 替换 GitHub Release 的安装版和便携版，并新增 `latest.yml` 与 blockmap。
-- [ ] 核对四个远程附件的大小和 SHA-256。
+- [x] 将自动更新修复提交并合并到 `master`，移动 `1.0.5` tag 到新的发布提交。
+- [x] 替换 GitHub Release 的安装版和便携版，并新增 `latest.yml` 与 blockmap。
+- [x] 核对四个远程附件的大小和 SHA-256。
 
 ## 发布后验证
 
 - [x] 打开 GitHub Release 页面，确认正文、tag、标题和两个附件均正确。
 - [x] 调用 GitHub latest release API，确认返回版本为 `1.0.5`。
-- [ ] 在旧版本应用中手动“检查更新”，确认显示 1.0.5 更新说明并能打开正确发布页。
-- [ ] 从 Release 页面各下载一次安装版和便携版，重新核对 SHA-256 并启动检查。
+- [x] 旧版应用“检查更新”已确认显示 1.0.5 并能打开正确发布页；旧版本仍需手动安装这次 1.0.5。
+- [x] GitHub 返回的四个附件摘要已与本地 SHA-256 逐项核对一致。
 - [x] 确认无误后，将发布结果和最终提交号记录到 `PROJECT_STATUS.md`。

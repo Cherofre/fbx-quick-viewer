@@ -1,12 +1,12 @@
 ## Current Snapshot
 
 - Last Updated: 2026-07-14
-- Branch: `fix/v1.0.5-auto-update`
-- Worktree: Dirty with the authorized v1.0.5 installer auto-update replacement.
+- Branch: `master`
+- Worktree: Clean after the v1.0.5 automatic-update replacement and ledger commit.
 - Superpowers Phase: Not active for this release.
 - Superpowers Plan: None; existing plans describe earlier releases and features.
 - Goal: Replace the undownloaded v1.0.5 installer with a build that supports non-blocking automatic downloads while preserving the old install directory and data.
-- Phase: Rebuilding and verifying the v1.0.5 release replacement.
+- Phase: v1.0.5 automatic-update replacement released.
 - Result: The installed build uses `electron-updater` to download future versions in the background with visible progress and a deferred restart action. Portable builds remain manual. NSIS keeps the registered 1.0.4 installation directory, preserves AppData, and protects an install-adjacent `FBX_Data` during replacement.
 - Dependencies: Electron 43.1.0, electron-builder 26.15.3, and electron-updater 6.8.9; `npm audit` reports zero vulnerabilities.
 - External verification: The user confirmed the packaged v1.0.5 drag-out behavior in a real 3ds Max workflow on 2026-07-14.
@@ -25,10 +25,10 @@
 - Packaged-app manual check: a production FBX displayed immediately, and a viewport mouse drag rotated both the model and ViewCube.
 - Final portable artifact smoke: `dist/fbx-quick-viewer.1.0.5.exe` exited with code `0` after `12.91` seconds and left no viewer process running.
 - Real 3ds Max verification: passed according to the user's production-machine test; release of the current unsigned artifacts was explicitly authorized.
-- Release commit: `5645e38088920d54ccaac2819d22a95e13377a17`.
+- Release commit: `43a3989734094df72871b6c2107a15f3bed9cb6a`.
 - Tag: `1.0.5`, pointing to the release commit.
 - GitHub Release: `https://github.com/Cherofre/fbx-quick-viewer/releases/tag/1.0.5` (published, not draft or prerelease).
-- GitHub latest-release API returns `1.0.5`; both uploaded asset SHA-256 digests match the local installer and portable executable.
+- GitHub latest-release API returns `1.0.5`; the installer, portable executable, `latest.yml`, and installer blockmap SHA-256 digests all match the final local artifacts.
 - Browser UI review at 1280×800 verified the help dialog, F1 shortcut, list/grid hover affordances, shared “⋯” menu, one-time hint persistence, UV hint, selected-model `.mesh` button, and toast feedback without overlap.
 - Browser interaction simulation verified middle-button pan changes the controls target while preserving the camera offset, then pressing Alt during the same drag preserves the target and changes the camera offset for rotation.
 - Browser UI review verified first-run choices persist (`.mesh`, navigation mode, list/grid view, help), preferences reopen from a dedicated gear button, operation mode uses stable segmented controls, search is below sorting, the compact `M` button aligns with other path actions, and update release notes render in a bounded dialog.

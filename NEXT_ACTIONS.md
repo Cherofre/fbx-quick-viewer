@@ -1,16 +1,14 @@
 ## Now
 
-- [x] Complete the v1.0.5 implementation, regression tests, Electron upgrade, security checks, UI review, and packaging verification.
-- [x] Prepare final installer/portable artifacts, checksums, release notes, upload aliases, and the release checklist.
-- [x] Verify the real 3ds Max workflow and accept release of the current unsigned Windows artifacts.
-- [x] Review, commit, and push the confirmed changes on `release/v1.0.5`.
-- [x] Merge into `master`, create tag `1.0.5`, publish the GitHub Release, and verify both uploaded asset digests.
+- [x] Complete and verify the original v1.0.5 feature set, including the real 3ds Max workflow and unsigned Windows packaging.
+- [x] Commit, merge, tag, publish, and verify the original v1.0.5 release artifacts and documentation.
 - [x] Add installer-only background auto-download progress and preserve the registered install directory plus existing data.
-- [ ] Complete final packaging, replace all v1.0.5 GitHub auto-update assets, and verify remote digests.
+- [x] Complete final packaging, replace all v1.0.5 GitHub auto-update assets, and verify remote digests.
+- [ ] Use the automatic updater when preparing the next version to validate a real 1.0.5-to-new-version background download and restart installation.
 
 ## Handoff Notes
 
-- Start here: Finish the `fix/v1.0.5-auto-update` release replacement and upload `latest.yml`, the NSIS installer, its blockmap, and the portable executable.
-- Do not redo: Auto-update implementation, unit tests, packaged updater configuration, non-modal UI review, and registered install-location review are complete.
-- Verify next: Rebuild after the final NSIS data-preservation change, then compare local and GitHub asset digests.
+- Start here: For the next release, build a version newer than 1.0.5 and exercise the complete installed-app download and restart path against the published GitHub assets.
+- Do not redo: Auto-update implementation, unit tests, packaged updater configuration, non-modal UI review, install-location preservation, v1.0.5 asset replacement, and remote digest checks are complete.
+- Verify next: Confirm an installed v1.0.5 downloads the next version in the background, preserves its registered path and data, then restarts into the new version.
 - Do not claim: The current Windows binaries are code-signed; they remain intentionally unsigned for this release.
