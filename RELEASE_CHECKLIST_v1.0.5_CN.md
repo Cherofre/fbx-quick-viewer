@@ -25,23 +25,23 @@
 ## Git 收口
 
 - [x] 检查 `git diff --check`、`git status` 和最终差异，确保没有缓存、日志、`dist` 或 `FBX_Data` 被纳入提交。
-- [ ] 将确认后的 1.0.5 文件提交到 `release/v1.0.5`。
-- [ ] 将 `release/v1.0.5` 合并到稳定分支 `master`。
-- [ ] 在合并后的发布提交创建 tag `1.0.5`，与现有 GitHub Release 的 tag 习惯保持一致。
-- [ ] 推送 `master`、release 分支和 tag 前再次确认远程为 `Cherofre/fbx-quick-viewer`。
+- [x] 将确认后的 1.0.5 文件提交到 `release/v1.0.5`。
+- [x] 将 `release/v1.0.5` 合并到稳定分支 `master`。
+- [x] 在合并后的发布提交创建 tag `1.0.5`，与现有 GitHub Release 的 tag 习惯保持一致。
+- [x] 推送 `master`、release 分支和 tag，并确认远程为 `Cherofre/fbx-quick-viewer`。
 
 ## GitHub Draft Release
 
-- [ ] 创建 Draft Release，tag 选择 `1.0.5`，标题建议使用 `v1.0.5`。
-- [ ] 正文使用 `RELEASE_NOTES_v1.0.5_CN.md`。
-- [ ] 上传安装版 `fbx-quick-viewer.Setup.1.0.5.exe`。
-- [ ] 上传便携版 `fbx-quick-viewer.1.0.5.exe`。
-- [ ] 发布前核对文件大小、SHA-256、Windows 10/11 说明和未签名风险提示。
+- [x] 创建并发布 Release，tag 为 `1.0.5`，标题为 `v1.0.5`。
+- [x] 正文使用 `RELEASE_NOTES_v1.0.5_CN.md`。
+- [x] 上传安装版 `fbx-quick-viewer.Setup.1.0.5.exe`。
+- [x] 上传便携版 `fbx-quick-viewer.1.0.5.exe`。
+- [x] 核对文件大小、SHA-256、Windows 10/11 说明和未签名风险提示。
 
 ## 发布后验证
 
-- [ ] 打开 GitHub Release 页面，确认正文、tag、标题和两个附件均正确。
-- [ ] 调用 GitHub latest release API，确认返回版本为 `1.0.5`。
+- [x] 打开 GitHub Release 页面，确认正文、tag、标题和两个附件均正确。
+- [x] 调用 GitHub latest release API，确认返回版本为 `1.0.5`。
 - [ ] 在旧版本应用中手动“检查更新”，确认显示 1.0.5 更新说明并能打开正确发布页。
 - [ ] 从 Release 页面各下载一次安装版和便携版，重新核对 SHA-256 并启动检查。
-- [ ] 确认无误后，将发布结果和最终提交号记录到 `PROJECT_STATUS.md`。
+- [x] 确认无误后，将发布结果和最终提交号记录到 `PROJECT_STATUS.md`。

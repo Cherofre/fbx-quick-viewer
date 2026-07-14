@@ -1,12 +1,12 @@
 ## Current Snapshot
 
 - Last Updated: 2026-07-14
-- Branch: `release/v1.0.5`
-- Worktree: Dirty with uncommitted v1.0.5 release changes and new release-ledger files.
+- Branch: `master`
+- Worktree: Clean after the v1.0.5 release and post-release ledger commit.
 - Superpowers Phase: Not active for this release.
 - Superpowers Plan: None; existing plans describe earlier releases and features.
 - Goal: Ship v1.0.5 with reliable native FBX drag-out to 3ds Max from list and grid views.
-- Phase: Release authorized; preparing commit, merge, tag, and GitHub Release.
+- Phase: v1.0.5 released.
 - Result: Native single-FBX drag-out is implemented for list and grid views with a 32×32 icon, trusted-sender validation, and file validation. File context menus and the selected-model path bar can copy a related same-name `.mesh` path. Discoverability includes a `?` / `F1` Chinese quick reference, first-run preferences, hover affordances, UV drag/reset cues, one-time hints, and toast feedback. The grid favorite/action layout, search placement, and search focus behavior are refined. Max navigation can switch between middle-button pan and Alt+middle rotate during an active drag. Update checks display GitHub Release notes safely as text.
 - Dependencies: Electron 43.1.0 and electron-builder 26.15.3; `npm audit` reports zero vulnerabilities.
 - External verification: The user confirmed the packaged v1.0.5 drag-out behavior in a real 3ds Max workflow on 2026-07-14.
@@ -25,6 +25,10 @@
 - Packaged-app manual check: a production FBX displayed immediately, and a viewport mouse drag rotated both the model and ViewCube.
 - Final portable artifact smoke: `dist/fbx-quick-viewer.1.0.5.exe` exited with code `0` after `12.91` seconds and left no viewer process running.
 - Real 3ds Max verification: passed according to the user's production-machine test; release of the current unsigned artifacts was explicitly authorized.
+- Release commit: `5645e38088920d54ccaac2819d22a95e13377a17`.
+- Tag: `1.0.5`, pointing to the release commit.
+- GitHub Release: `https://github.com/Cherofre/fbx-quick-viewer/releases/tag/1.0.5` (published, not draft or prerelease).
+- GitHub latest-release API returns `1.0.5`; both uploaded asset SHA-256 digests match the local installer and portable executable.
 - Browser UI review at 1280×800 verified the help dialog, F1 shortcut, list/grid hover affordances, shared “⋯” menu, one-time hint persistence, UV hint, selected-model `.mesh` button, and toast feedback without overlap.
 - Browser interaction simulation verified middle-button pan changes the controls target while preserving the camera offset, then pressing Alt during the same drag preserves the target and changes the camera offset for rotation.
 - Browser UI review verified first-run choices persist (`.mesh`, navigation mode, list/grid view, help), preferences reopen from a dedicated gear button, operation mode uses stable segmented controls, search is below sorting, the compact `M` button aligns with other path actions, and update release notes render in a bounded dialog.
