@@ -1,15 +1,17 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const https = require('https');
 const { pathToFileURL } = require('url');
+const { findRelatedMeshPath } = require('./mesh-path');
 
 let mainWindow;
 let cachedDataDir = null;
 let cachedThumbnailDataDir = null;
 let thumbnailCachePromptedThisSession = false;
 let activeScan = null;
+let dragIcon = null;
 const LOCAL_FILE_SCHEME = 'fbx-local';
 const THUMBNAIL_CACHE_CONFIG_NAME = 'thumbnail-cache-dir.json';
 const ALLOWED_LOCAL_FILE_EXTENSIONS = new Set(['.fbx', '.png', '.jpg', '.jpeg', '.bmp', '.gif', '.dds', '.tga']);
@@ -89,7 +91,8 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
-            webSecurity: true
+            webSecurity: true,
+            backgroundThrottling: process.env.FBX_QUICK_VIEWER_SMOKE !== '1'
         },
         show: false // 先隐藏，设置好最大化状态后再显示，避免闪烁
     });
@@ -156,6 +159,54 @@ function runSmokeAssertions() {
                     return { ok: false, reason: 'local file protocol did not return smoke content' };
                 }
             }
+
+            if (typeof getUVControlState !== 'function' || typeof undoUVChange !== 'function' || typeof redoUVChange !== 'function') {
+                return { ok: false, reason: 'UV history controls are not available' };
+            }
+
+            const tileUInput = document.getElementById('tileU');
+            if (!tileUInput || !matUV || !matUV.map) {
+                return { ok: false, reason: 'UV preview controls are not initialized' };
+            }
+
+            if (renderer.info.render.frame < 1) {
+                return { ok: false, reason: 'initial 3D frame was not rendered' };
+            }
+            if (!Number.isInteger(animationFrameRequestId) || animationFrameRequestId <= 0) {
+                return { ok: false, reason: 'animation frame callback was not scheduled' };
+            }
+
+            const originalUVState = getUVControlState();
+            clearUVHistory();
+            tileUInput.value = '1.25';
+            updateUVMax();
+            const tileUResetButton = document.querySelector('.uv-reset-btn[data-reset-input="tileU"]');
+            if (!tileUResetButton || !tileUResetButton.classList.contains('visible')) {
+                return { ok: false, reason: 'changed UV value did not expose its reset action' };
+            }
+            resetUVControl('tileU');
+            if (Number(tileUInput.value) !== 1 || tileUResetButton.classList.contains('visible')) {
+                return { ok: false, reason: 'individual UV reset did not restore and hide correctly' };
+            }
+            clearUVHistory();
+            tileUInput.value = '0';
+            updateUVMax();
+            if (matUV.map.repeat.x !== 0) {
+                return { ok: false, reason: 'UV tiling zero value was not applied' };
+            }
+
+            const zeroUVState = getUVControlState();
+            tileUInput.value = '1.25';
+            updateUVMax();
+            pushUVUndoState(zeroUVState);
+            if (!undoUVChange() || Number(tileUInput.value) !== 0) {
+                return { ok: false, reason: 'UV undo did not restore zero' };
+            }
+            if (!redoUVChange() || Number(tileUInput.value) !== 1.25) {
+                return { ok: false, reason: 'UV redo did not restore the edited value' };
+            }
+            applyUVControlState(originalUVState);
+            clearUVHistory();
 
             return { ok: true };
         })()
@@ -249,6 +300,28 @@ function isAllowedLocalFilePath(filePath) {
     } catch (error) {
         return false;
     }
+}
+
+function getDraggableFbxPath(filePath) {
+    try {
+        if (!filePath || typeof filePath !== 'string' || !path.isAbsolute(filePath)) return '';
+        const resolvedPath = path.resolve(filePath);
+        if (path.extname(resolvedPath).toLowerCase() !== '.fbx') return '';
+        return fs.statSync(resolvedPath).isFile() ? resolvedPath : '';
+    } catch (error) {
+        return '';
+    }
+}
+
+function getDragIcon() {
+    if (dragIcon) return dragIcon;
+
+    const iconPath = path.join(__dirname, 'icon.png');
+    const sourceIcon = nativeImage.createFromPath(iconPath);
+    dragIcon = sourceIcon.isEmpty()
+        ? iconPath
+        : sourceIcon.resize({ width: 32, height: 32, quality: 'best' });
+    return dragIcon;
 }
 
 function createLocalFileUrl(filePath) {
@@ -806,7 +879,8 @@ ipcMain.handle('check-for-updates', async () => {
             updateAvailable: compareVersions(latestVersion, currentVersion) > 0,
             releaseName: release.name || release.tag_name || latestVersion,
             releaseUrl: release.html_url || '',
-            publishedAt: release.published_at || ''
+            publishedAt: release.published_at || '',
+            releaseNotes: String(release.body || '').slice(0, 12000)
         };
     } catch (error) {
         return {
@@ -816,6 +890,7 @@ ipcMain.handle('check-for-updates', async () => {
             updateAvailable: false,
             releaseName: '',
             releaseUrl: '',
+            releaseNotes: '',
             error: error.message || String(error)
         };
     }
@@ -852,10 +927,18 @@ ipcMain.handle('reveal-in-explorer', (event, fullPath) => {
     if (fullPath) shell.showItemInFolder(fullPath);
 });
 
-ipcMain.on('ondragstart', (event, fullPath) => {
-    if (!fullPath || !fs.existsSync(fullPath)) return;
+ipcMain.handle('find-related-mesh-path', async (event, fullPath) => {
+    if (!isTrustedSender(event)) return '';
+    return findRelatedMeshPath(fullPath);
+});
+
+ipcMain.on('start-fbx-drag', (event, fullPath) => {
+    if (!isTrustedSender(event)) return;
+    const draggablePath = getDraggableFbxPath(fullPath);
+    if (!draggablePath) return;
+
     event.sender.startDrag({
-        file: fullPath,
-        icon: path.join(__dirname, 'icon.png')
+        file: draggablePath,
+        icon: getDragIcon()
     });
 });

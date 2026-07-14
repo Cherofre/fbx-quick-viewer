@@ -28,10 +28,9 @@ const allowedInvokeChannels = new Set([
     'check-for-updates',
     'open-external-url',
     'open-folder-dialog',
-    'reveal-in-explorer'
+    'reveal-in-explorer',
+    'find-related-mesh-path'
 ]);
-
-const allowedSendChannels = new Set(['ondragstart']);
 
 contextBridge.exposeInMainWorld('electronAPI', {
     invoke(channel, ...args) {
@@ -41,9 +40,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return ipcRenderer.invoke(channel, ...args);
     },
 
-    send(channel, ...args) {
-        if (!allowedSendChannels.has(channel)) return false;
-        ipcRenderer.send(channel, ...args);
+    startFbxDrag(filePath) {
+        if (!filePath || typeof filePath !== 'string') return false;
+        ipcRenderer.send('start-fbx-drag', filePath);
         return true;
     },
 

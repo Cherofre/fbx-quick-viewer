@@ -157,6 +157,9 @@
             flex: 1;
             padding: 0 2px;
         }
+        .max-field:focus-within {
+            border-color: #007acc;
+        }
         .max-field span {
             color: #00aaff; /* Max 蓝 */
             font-weight: bold;
@@ -164,8 +167,28 @@
             font-size: 10px;
             cursor: ew-resize; /* 🟢 关键：鼠标悬停显示左右拖动箭头 */
             user-select: none; /* 禁止选中文本 */
-            width: 12px;       /* 增加一点点击区域 */
+            width: 16px;
             text-align: center;
+        }
+        .max-field .scrub-label {
+            width: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+        }
+        .max-field .scrub-label::after {
+            content: "↔";
+            color: #777;
+            font-size: 8px;
+            font-weight: normal;
+            opacity: 0.55;
+            transition: color 120ms ease-out, opacity 120ms ease-out;
+        }
+        .max-field:hover .scrub-label::after,
+        .max-field:focus-within .scrub-label::after {
+            color: #4fc1ff;
+            opacity: 1;
         }
         /* 拖动时给 body 加个样式，防止鼠标移出区域后图标变回箭头 */
         body.is-dragging {
@@ -173,6 +196,7 @@
         }
         .max-field input {
             width: 100%;
+            min-width: 0;
             background: transparent;
             border: none;
             color: white;
@@ -183,6 +207,30 @@
         }
         /* 去掉数字输入框的箭头 */
         .max-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        #controls .max-field .uv-reset-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 17px !important;
+            height: 16px;
+            flex: 0 0 17px;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            border-radius: 2px;
+            background: transparent !important;
+            color: #888;
+            font-size: 12px;
+            line-height: 1;
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 120ms ease-out, color 120ms ease-out, background 120ms ease-out;
+        }
+        #controls .max-field .uv-reset-btn.visible { visibility: visible; opacity: 1; pointer-events: auto; }
+        #controls .max-field .uv-reset-btn:hover,
+        #controls .max-field .uv-reset-btn:focus-visible { color: #fff; background: #444 !important; outline: 1px solid #007acc; }
+        .max-field.reset-flash { border-color: #4fc1ff; background: #26343b; }
         /* 网格下拉框样式 */
         .grid-select-box {
             width: 100%;
@@ -358,8 +406,9 @@
         #selected-path-input { flex: 1; background: #3c3c3c; border: 1px solid #555; color: #999; border-radius: 3px; padding: 4px 6px; font-size: 11px; outline: none; width: calc(100% - 70px); }
         .icon-btn { width: 26px; padding: 0; margin-left: 5px; background: #3c3c3c; border: 1px solid #555; color: #fff; cursor: pointer; border-radius: 3px; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; height: 24px; }
         .icon-btn:hover { background: #505050; }
-        #search-container { padding: 10px; border-top: 1px solid #3e3e42; background: #252526; }
-        #search-input { width: 100%; padding: 6px; background: #3c3c3c; border: 1px solid #555; color: white; border-radius: 3px; box-sizing: border-box; }
+        #search-container { padding: 8px 15px; border-bottom: 1px solid #3e3e42; background: #252526; }
+        #search-input { width: 100%; padding: 6px; background: #3c3c3c; border: 1px solid #555; color: white; border-radius: 3px; box-sizing: border-box; outline: none; transition: border-color 120ms ease-out, background 120ms ease-out; }
+        #search-input:focus { background: #404040; border-color: #a98f49; }
 
         /* --- 主画布 --- */
         #canvas-container { flex: 1; height: 100vh; background: #404040; position: relative; overflow: hidden; }
@@ -546,6 +595,270 @@
             font-weight: bold;
         }
 
+        /* --- 操作可发现性 --- */
+        .header-actions button {
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+            border: none;
+            background: transparent;
+            color: #888;
+            cursor: pointer;
+            font: inherit;
+        }
+        .header-actions button:hover,
+        .header-actions button:focus-visible {
+            color: #fff !important;
+            background: #3c3c3c !important;
+            outline: 1px solid #007acc;
+            outline-offset: 1px;
+        }
+        .file-item {
+            gap: 5px;
+            position: relative;
+        }
+        .item-drag-affordance {
+            flex: 0 0 auto;
+            color: #777;
+            font-size: 12px;
+            line-height: 1;
+            opacity: 0.45;
+            pointer-events: none;
+        }
+        .file-item:hover .item-drag-affordance,
+        .grid-item:hover .item-drag-affordance {
+            color: #bbb;
+            opacity: 1;
+        }
+        .item-actions-button {
+            width: 22px;
+            height: 22px;
+            flex: 0 0 22px;
+            padding: 0;
+            border: 1px solid transparent;
+            border-radius: 3px;
+            background: transparent;
+            color: #bbb;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 18px;
+            opacity: 0;
+        }
+        .file-item:hover .item-actions-button,
+        .grid-item:hover .item-actions-button,
+        .item-actions-button:focus-visible {
+            opacity: 1;
+        }
+        .item-actions-button:hover,
+        .item-actions-button:focus-visible {
+            background: #505050;
+            border-color: #777;
+            color: #fff;
+            outline: none;
+        }
+        .grid-item > .item-actions-button {
+            position: absolute;
+            left: 5px;
+            bottom: 29px;
+            z-index: 24;
+            background: rgba(20, 20, 20, 0.72);
+        }
+        .grid-item > .item-drag-affordance {
+            position: absolute;
+            right: 7px;
+            bottom: 29px;
+            z-index: 22;
+            padding: 3px 5px;
+            border-radius: 2px;
+            background: rgba(20, 20, 20, 0.72);
+            font-size: 10px;
+            opacity: 0;
+        }
+        .grid-item:hover > .item-drag-affordance { opacity: 1; }
+        .grid-fav-icon { right: 5px; }
+        #selected-path-input { width: auto; min-width: 0; }
+        .mesh-path-btn { width: 26px; font-size: 11px; font-weight: 700; font-family: Consolas, monospace; }
+
+        #help-dialog,
+        #update-dialog,
+        #first-run-dialog {
+            width: min(560px, calc(100vw - 40px));
+            max-height: calc(100vh - 60px);
+            padding: 0;
+            border: 1px solid #555;
+            border-radius: 6px;
+            background: #252526;
+            color: #ddd;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+        }
+        #help-dialog::backdrop,
+        #update-dialog::backdrop,
+        #first-run-dialog::backdrop { background: rgba(0, 0, 0, 0.58); }
+        .help-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 14px;
+            border-bottom: 1px solid #444;
+            background: #2d2d2d;
+        }
+        .help-header h2 { margin: 0; font-size: 15px; font-weight: 600; }
+        .help-close {
+            width: 26px;
+            height: 26px;
+            border: 1px solid transparent;
+            border-radius: 3px;
+            background: transparent;
+            color: #bbb;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        .help-close:hover,
+        .help-close:focus-visible { background: #444; color: #fff; border-color: #666; outline: none; }
+        .help-content { padding: 4px 14px 12px; overflow-y: auto; }
+        .help-section { padding: 10px 0; border-bottom: 1px solid #3d3d3d; }
+        .help-section:last-child { border-bottom: none; }
+        .help-section h3 { margin: 0 0 7px; color: #4fc1ff; font-size: 12px; }
+        .help-row {
+            display: grid;
+            grid-template-columns: minmax(105px, 145px) 1fr;
+            gap: 12px;
+            padding: 3px 0;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+        .help-row strong { color: #f0f0f0; font-weight: 600; }
+        .help-row span { color: #aaa; }
+        .key {
+            display: inline-block;
+            min-width: 18px;
+            padding: 1px 4px;
+            border: 1px solid #666;
+            border-radius: 3px;
+            background: #333;
+            color: #eee;
+            text-align: center;
+            font: 11px Consolas, monospace;
+        }
+        .help-row .key { color: #eee; }
+        .help-footer { padding: 9px 14px; border-top: 1px solid #444; color: #888; font-size: 11px; }
+        .update-meta { padding: 10px 0 8px; color: #aaa; font-size: 11px; border-bottom: 1px solid #3d3d3d; }
+        .update-notes-title { margin: 10px 0 6px; color: #4fc1ff; font-size: 12px; font-weight: 600; }
+        #update-release-notes {
+            min-height: 90px;
+            max-height: 320px;
+            margin: 0;
+            padding: 9px 10px;
+            overflow: auto;
+            border: 1px solid #444;
+            border-radius: 3px;
+            background: #1f1f1f;
+            color: #ccc;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            font: 12px/1.55 'Segoe UI', sans-serif;
+            user-select: text;
+        }
+        .update-actions { display: flex; justify-content: flex-end; gap: 7px; padding: 10px 14px; border-top: 1px solid #444; }
+        .update-actions button { min-width: 88px; padding: 6px 10px; border: 1px solid #5b5b5b; border-radius: 3px; background: #3c3c3c; color: #eee; cursor: pointer; font-size: 12px; }
+        .update-actions button:hover,
+        .update-actions button:focus-visible { background: #505050; border-color: #777; outline: 1px solid #007acc; }
+        .update-actions .primary { background: #0e639c; border-color: #007acc; }
+        .update-actions .primary:hover { background: #1177bb; }
+        .update-actions button:disabled { opacity: 0.45; cursor: default; }
+        .setup-content { padding: 8px 14px 12px; }
+        .setup-row { display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid #3d3d3d; }
+        .setup-row:last-child { border-bottom: none; }
+        .setup-label { color: #ddd; font-size: 12px; font-weight: 600; }
+        .setup-control { min-width: 0; color: #bbb; font-size: 12px; }
+        .setup-control select { width: 100%; margin: 0; }
+        .setup-checkbox { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+        .setup-checkbox input { accent-color: #007acc; }
+        .setup-segment { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+        .setup-segment input { position: absolute; opacity: 0; pointer-events: none; }
+        .setup-segment label { padding: 5px 8px; border: 1px solid #555; border-radius: 3px; background: #333; color: #bbb; cursor: pointer; text-align: center; font-size: 11px; }
+        .setup-segment input:checked + label { background: #0e639c; border-color: #007acc; color: #fff; }
+        .setup-segment input:focus-visible + label { outline: 1px solid #4fc1ff; outline-offset: 1px; }
+        .setup-mode-help { margin-top: 5px; color: #888; font-size: 10px; line-height: 1.4; }
+
+        #coachmark-layer {
+            position: absolute;
+            left: 50%;
+            bottom: 18px;
+            z-index: 80;
+            width: min(380px, calc(100% - 36px));
+            transform: translate(-50%, 10px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 180ms ease-out, transform 180ms ease-out;
+        }
+        #coachmark-layer.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+        .coachmark {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            padding: 10px 11px;
+            border: 1px solid #5d5d5d;
+            border-radius: 5px;
+            background: #252526;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.38);
+        }
+        .coachmark-copy { flex: 1; min-width: 0; }
+        .coachmark-title { margin-bottom: 3px; color: #fff; font-size: 12px; font-weight: 600; }
+        .coachmark-message { color: #bbb; font-size: 11px; line-height: 1.45; }
+        .coachmark-dismiss {
+            flex: 0 0 auto;
+            padding: 4px 8px;
+            border: 1px solid #666;
+            border-radius: 3px;
+            background: #3c3c3c;
+            color: #fff;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        .coachmark-dismiss:hover,
+        .coachmark-dismiss:focus-visible { background: #505050; border-color: #888; outline: 1px solid #007acc; }
+
+        #toast-stack {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            z-index: 10020;
+            display: flex;
+            width: min(340px, calc(100vw - 32px));
+            flex-direction: column;
+            gap: 7px;
+            pointer-events: none;
+        }
+        .toast {
+            padding: 9px 11px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #252526;
+            color: #eee;
+            box-shadow: 0 5px 16px rgba(0, 0, 0, 0.42);
+            font-size: 12px;
+            line-height: 1.4;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: opacity 160ms ease-out, transform 160ms ease-out;
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { border-color: #3f8f63; }
+        .toast.error { border-color: #b85a5a; }
+
+        @media (prefers-reduced-motion: reduce) {
+            #coachmark-layer,
+            .toast,
+            .max-field .scrub-label::after,
+            #controls .max-field .uv-reset-btn,
+            #search-input { transition: none; }
+        }
+
     </style>
 
 <script src="libs/three.min.js"></script>
@@ -560,6 +873,92 @@
 </head>
 <body>
 
+    <dialog id="help-dialog" aria-labelledby="help-title">
+        <div class="help-header">
+            <h2 id="help-title">操作速查</h2>
+            <button class="help-close" type="button" onclick="closeHelp()" aria-label="关闭帮助" title="关闭">×</button>
+        </div>
+        <div class="help-content">
+            <section class="help-section">
+                <h3>模型与路径</h3>
+                <div class="help-row"><strong>导入 3ds Max</strong><span>从列表或缩略图拖动模型，直接放到 3ds Max 视口。</span></div>
+                <div class="help-row"><strong>更多操作</strong><span>悬停后点击 <span class="key">⋯</span>，或右键模型，可复制 FBX / .mesh 路径并打开文件夹。</span></div>
+                <div class="help-row"><strong>当前模型</strong><span>路径栏右侧可直接复制 FBX 路径，点击 M 按钮复制关联 .mesh 路径。</span></div>
+            </section>
+            <section class="help-section">
+                <h3>视口</h3>
+                <div class="help-row"><strong>聚焦 / 复位</strong><span><span class="key">Z</span> 聚焦模型，<span class="key">Space</span> 复位相机。</span></div>
+                <div class="help-row"><strong>视图</strong><span><span class="key">T</span> 顶、<span class="key">F</span> 前、<span class="key">L</span> 左、<span class="key">R</span> 右、<span class="key">P</span> 透视。</span></div>
+                <div class="help-row"><strong>显示</strong><span><span class="key">G</span> 网格，<span class="key">F3</span> 纯线框，<span class="key">F4</span> 实体线框。</span></div>
+            </section>
+            <section class="help-section">
+                <h3>贴图预览</h3>
+                <div class="help-row"><strong>调整数值</strong><span>拖动带 ↔ 的 U / V 标签；按 <span class="key">Shift</span> 精调，按 <span class="key">Ctrl</span> 加速，双击标签或点击 ↶ 重置。</span></div>
+                <div class="help-row"><strong>撤销 / 重做</strong><span><span class="key">Ctrl+Z</span> 撤销，<span class="key">Ctrl+Y</span> 或 <span class="key">Ctrl+Shift+Z</span> 重做。</span></div>
+            </section>
+        </div>
+        <div class="help-footer">随时按 F1 再次打开此页。</div>
+    </dialog>
+
+    <dialog id="update-dialog" aria-labelledby="update-dialog-title">
+        <div class="help-header">
+            <h2 id="update-dialog-title">发现新版本</h2>
+            <button class="help-close" type="button" onclick="closeUpdateDialog()" aria-label="关闭更新说明" title="关闭">×</button>
+        </div>
+        <div class="help-content">
+            <div id="update-meta" class="update-meta"></div>
+            <div class="update-notes-title">更新说明</div>
+            <pre id="update-release-notes"></pre>
+        </div>
+        <div class="update-actions">
+            <button type="button" onclick="closeUpdateDialog()">稍后</button>
+            <button id="open-update-page-btn" class="primary" type="button" onclick="openUpdatePage()">打开发布页</button>
+        </div>
+    </dialog>
+
+    <dialog id="first-run-dialog" aria-labelledby="first-run-title">
+        <div class="help-header">
+            <h2 id="first-run-title">首次设置</h2>
+        </div>
+        <div class="setup-content">
+            <div class="setup-row">
+                <div class="setup-label">.mesh 操作</div>
+                <label class="setup-control setup-checkbox"><input id="setup-mesh-enabled" type="checkbox" checked> 显示复制 .mesh 路径入口</label>
+            </div>
+            <div class="setup-row">
+                <div class="setup-label">视口操作</div>
+                <div class="setup-control">
+                    <div class="setup-segment">
+                        <input id="setup-nav-default" type="radio" name="setup-nav-mode" value="default" checked>
+                        <label for="setup-nav-default">默认操作</label>
+                        <input id="setup-nav-max" type="radio" name="setup-nav-mode" value="max">
+                        <label for="setup-nav-max">3ds Max 操作</label>
+                    </div>
+                    <div class="setup-mode-help">默认使用左键旋转、右键平移；3ds Max 使用中键平移、Alt+中键旋转。</div>
+                </div>
+            </div>
+            <div class="setup-row">
+                <div class="setup-label">资源视图</div>
+                <div class="setup-control setup-segment">
+                    <input id="setup-view-list" type="radio" name="setup-view-mode" value="list" checked>
+                    <label for="setup-view-list">列表</label>
+                    <input id="setup-view-grid" type="radio" name="setup-view-mode" value="grid">
+                    <label for="setup-view-grid">缩略图</label>
+                </div>
+            </div>
+            <div class="setup-row">
+                <div class="setup-label">操作帮助</div>
+                <label class="setup-control setup-checkbox"><input id="setup-open-help" type="checkbox" checked> 完成后打开操作速查</label>
+            </div>
+        </div>
+        <div class="update-actions">
+            <button id="setup-cancel-btn" type="button" onclick="cancelPreferencesDialog()">使用默认设置</button>
+            <button class="primary" type="button" onclick="savePreferencesDialog()">保存设置</button>
+        </div>
+    </dialog>
+
+    <div id="toast-stack" role="status" aria-live="polite" aria-atomic="true"></div>
+
     <!-- 修复后的文件菜单：加上了 class="ctx-menu" -->
         <div id="ctx-menu" class="ctx-menu">
         <!-- 通用功能 -->
@@ -568,6 +967,9 @@
         </div>
         <div onclick="copyItemPath()">
             <span><span class="icon">📋</span>复制文件路径</span>
+        </div>
+        <div id="ctx-copy-mesh-item" onclick="copyItemMeshPath()">
+            <span><span class="icon">📄</span>复制 .mesh 路径</span>
         </div>
         
         <!-- 网格模式专属功能 -->
@@ -614,6 +1016,8 @@
                 <div class="header-top-row">
                     <span>当前目录: <span id="dir-name">未选择</span></span>
                     <div class="header-actions" style="display:flex; gap:5px;">
+                        <button id="settings-btn" class="icon-btn-ghost" onclick="showPreferencesDialog(true)" title="偏好设置" aria-label="偏好设置">⚙</button>
+                        <button id="help-btn" class="icon-btn-ghost" onclick="showHelp()" title="操作帮助 (F1)" aria-label="操作帮助">?</button>
                         <button id="check-update-btn" class="icon-btn-ghost" onclick="checkForUpdates(true)" title="检查更新" style="background:transparent;border:none;color:#888;cursor:pointer;">⬆</button>
                         <button id="history-btn" class="icon-btn-ghost" onclick="toggleHistory()" title="最近历史记录" style="background:transparent;border:none;color:#888;cursor:pointer;">🕒</button>
                         <button id="refresh-dir-btn" onclick="refreshCurrentDirectory()" title="重新索引当前目录" style="background:transparent;border:none;color:#888;cursor:pointer;">↻</button>
@@ -642,6 +1046,10 @@
                 <button id="thumb-toggle-btn" class="sort-btn" onclick="toggleViewMode()" style="margin-left: 5px;" title="切换 列表/缩略图 模式">⊞</button>
             </div>
 
+            <div id="search-container">
+                <input type="text" id="search-input" placeholder="搜索文件..." oninput="filterFiles(this.value)">
+            </div>
+
             <div id="file-list" tabindex="0">
                 <div style="padding:15px; color:#666; font-size:12px; text-align: center;">请选择文件夹加载模型</div>
             </div>
@@ -652,12 +1060,9 @@
                 <div style="display: flex;">
                     <input type="text" id="selected-path-input" readonly placeholder="未选择文件">
                     <button class="icon-btn" id="copy-path-btn" onclick="copyPath()" title="复制完整路径">❐</button>
+                    <button class="icon-btn mesh-path-btn" id="copy-mesh-path-btn" onclick="copyCurrentMeshPath()" title="复制关联 .mesh 路径" aria-label="复制关联 .mesh 路径">M</button>
                     <button class="icon-btn" id="open-folder-btn" onclick="revealInExplorer()" title="打开所在文件夹">📂</button>
                 </div>
-            </div>
-
-            <div id="search-container">
-                <input type="text" id="search-input" placeholder="搜索文件..." oninput="filterFiles(this.value)">
             </div>
         </div>
     </div>
@@ -671,6 +1076,7 @@
         <div id="drag-hint">释放鼠标以加载 FBX 或贴图</div>
         <div id="sidebar-toggle-btn" onclick="toggleSidebar()" title="折叠/展开侧边栏">◀</div>
         <div id="loading-overlay">加载中...</div>
+        <div id="coachmark-layer" aria-live="polite"></div>
         
         <div id="right-panel-container">
             <div id="controls-toggle-btn" onclick="toggleControls()" title="折叠/展开功能区">▶</div>
@@ -745,15 +1151,17 @@
                     <div class="max-row">
                         <span>平铺</span>
                         <div class="max-input-group">
-                            <div class="max-field" title="按住拖动调整 U">
+                            <div class="max-field" title="拖动调整；Shift 精调；Ctrl 加速；双击 U 重置">
                                 <!-- 🟢 加上了 id="lbl-tileU" -->
-                                <span id="lbl-tileU">U</span>
-                                <input type="number" id="tileU" value="1.0" step="0.1" oninput="updateUVMax()">
+                                <span id="lbl-tileU" class="scrub-label">U</span>
+                                <input type="number" id="tileU" value="1.0" step="0.01" oninput="updateUVMax()">
+                                <button class="uv-reset-btn" type="button" data-reset-input="tileU" onclick="resetUVControl('tileU')" title="重置 U 平铺为 1" aria-label="重置 U 平铺为 1">↶</button>
                             </div>
-                            <div class="max-field" title="按住拖动调整 V">
+                            <div class="max-field" title="拖动调整；Shift 精调；Ctrl 加速；双击 V 重置">
                                 <!-- 🟢 加上了 id="lbl-tileV" -->
-                                <span id="lbl-tileV">V</span>
-                                <input type="number" id="tileV" value="1.0" step="0.1" oninput="updateUVMax()">
+                                <span id="lbl-tileV" class="scrub-label">V</span>
+                                <input type="number" id="tileV" value="1.0" step="0.01" oninput="updateUVMax()">
+                                <button class="uv-reset-btn" type="button" data-reset-input="tileV" onclick="resetUVControl('tileV')" title="重置 V 平铺为 1" aria-label="重置 V 平铺为 1">↶</button>
                             </div>
                         </div>
                     </div>
@@ -767,15 +1175,17 @@
                     <div class="max-row">
                         <span>偏移</span>
                         <div class="max-input-group">
-                            <div class="max-field" title="按住拖动调整 U">
+                            <div class="max-field" title="拖动调整；Shift 精调；Ctrl 加速；双击 U 归零">
                                 <!-- 🟢 加上了 id="lbl-offU" -->
-                                <span id="lbl-offU">U</span>
-                                <input type="number" id="offU" value="0.0" step="0.1" oninput="updateUVMax()">
+                                <span id="lbl-offU" class="scrub-label">U</span>
+                                <input type="number" id="offU" value="0.0" step="0.01" oninput="updateUVMax()">
+                                <button class="uv-reset-btn" type="button" data-reset-input="offU" onclick="resetUVControl('offU')" title="重置 U 偏移为 0" aria-label="重置 U 偏移为 0">↶</button>
                             </div>
-                            <div class="max-field" title="按住拖动调整 V">
+                            <div class="max-field" title="拖动调整；Shift 精调；Ctrl 加速；双击 V 归零">
                                 <!-- 🟢 加上了 id="lbl-offV" -->
-                                <span id="lbl-offV">V</span>
-                                <input type="number" id="offV" value="0.0" step="0.1" oninput="updateUVMax()">
+                                <span id="lbl-offV" class="scrub-label">V</span>
+                                <input type="number" id="offV" value="0.0" step="0.01" oninput="updateUVMax()">
+                                <button class="uv-reset-btn" type="button" data-reset-input="offV" onclick="resetUVControl('offV')" title="重置 V 偏移为 0" aria-label="重置 V 偏移为 0">↶</button>
                             </div>
                         </div>
                     </div>
@@ -784,16 +1194,18 @@
                     <div class="max-row" style="margin-top: 8px; border-top: 1px dashed #444; padding-top: 5px;">
                         <span>流动</span>
                         <div class="max-input-group">
-                            <div class="max-field" title="按住拖动调整 U 流速">
+                            <div class="max-field" title="拖动调整；Shift 精调；Ctrl 加速；双击 U 归零">
                                 <!-- 🟢 加上 id="lbl-flowU" 用于拖动 -->
-                                <span id="lbl-flowU">U</span>
+                                <span id="lbl-flowU" class="scrub-label">U</span>
                                 <!-- 初始值 0.0，代表静止 -->
-                                <input type="number" id="flowU_val" value="0.0" step="0.1">
+                                <input type="number" id="flowU_val" value="0.0" step="0.01" oninput="updateUVMax()">
+                                <button class="uv-reset-btn" type="button" data-reset-input="flowU_val" onclick="resetUVControl('flowU_val')" title="重置 U 流动为 0" aria-label="重置 U 流动为 0">↶</button>
                             </div>
-                            <div class="max-field" title="按住拖动调整 V 流速">
+                            <div class="max-field" title="拖动调整；Shift 精调；Ctrl 加速；双击 V 归零">
                                 <!-- 🟢 加上 id="lbl-flowV" 用于拖动 -->
-                                <span id="lbl-flowV">V</span>
-                                <input type="number" id="flowV_val" value="0.0" step="0.1">
+                                <span id="lbl-flowV" class="scrub-label">V</span>
+                                <input type="number" id="flowV_val" value="0.0" step="0.01" oninput="updateUVMax()">
+                                <button class="uv-reset-btn" type="button" data-reset-input="flowV_val" onclick="resetUVControl('flowV_val')" title="重置 V 流动为 0" aria-label="重置 V 流动为 0">↶</button>
                             </div>
                         </div>
                     </div>
@@ -1291,6 +1703,231 @@
         let temporaryDroppedFbxItem = null;
         let activeScanRequestId = 0;
         let isScanningFolder = false;
+        const ONBOARDING_HINT_KEYS = {
+            folderActions: 'fbx_hint_folder_actions_v1',
+            uvControls: 'fbx_hint_uv_controls_v1'
+        };
+        const PREFERENCE_KEYS = {
+            firstRunComplete: 'fbx_first_run_setup_v1',
+            meshActionsEnabled: 'fbx_mesh_actions_enabled'
+        };
+        let activeCoachmark = null;
+        const coachmarkQueue = [];
+        let pendingUpdateUrl = '';
+        let preferenceDialogRequired = false;
+        let preferenceDialogResolver = null;
+
+        function showHelp() {
+            const dialog = document.getElementById('help-dialog');
+            if (!dialog || dialog.open) return;
+            dialog.showModal();
+        }
+
+        function closeHelp() {
+            const dialog = document.getElementById('help-dialog');
+            if (dialog && dialog.open) dialog.close();
+        }
+
+        function closeUpdateDialog() {
+            const dialog = document.getElementById('update-dialog');
+            if (dialog && dialog.open) dialog.close();
+        }
+
+        function showUpdateDialog(result) {
+            const dialog = document.getElementById('update-dialog');
+            if (!dialog) return;
+
+            pendingUpdateUrl = result.releaseUrl || '';
+            const publishedDate = result.publishedAt ? new Date(result.publishedAt).toLocaleDateString('zh-CN') : '日期未知';
+            document.getElementById('update-dialog-title').textContent = `发现新版本 ${result.latestVersion}`;
+            document.getElementById('update-meta').textContent = `当前版本 ${result.currentVersion} · 发布于 ${publishedDate}`;
+            document.getElementById('update-release-notes').textContent = (result.releaseNotes || '').trim() || '此版本未提供更新说明。';
+            document.getElementById('open-update-page-btn').disabled = !pendingUpdateUrl;
+            if (!dialog.open) dialog.showModal();
+        }
+
+        async function openUpdatePage() {
+            if (!pendingUpdateUrl || !isElectron) return;
+            const opened = await ipcRenderer.invoke('open-external-url', pendingUpdateUrl);
+            if (!opened) {
+                showToast('无法打开发布页面', 'error');
+                return;
+            }
+            closeUpdateDialog();
+        }
+
+        function areMeshActionsEnabled() {
+            return localStorage.getItem(PREFERENCE_KEYS.meshActionsEnabled) !== '0';
+        }
+
+        function applyMeshActionPreference() {
+            const enabled = isElectron && areMeshActionsEnabled();
+            const contextAction = document.getElementById('ctx-copy-mesh-item');
+            const currentModelAction = document.getElementById('copy-mesh-path-btn');
+            if (contextAction) contextAction.style.display = enabled ? 'flex' : 'none';
+            if (currentModelAction) currentModelAction.style.display = enabled ? 'inline-flex' : 'none';
+        }
+
+        function showFirstRunSetupIfNeeded() {
+            if (localStorage.getItem(PREFERENCE_KEYS.firstRunComplete) === '1') return Promise.resolve();
+            return showPreferencesDialog(false);
+        }
+
+        function showPreferencesDialog(reopen = false) {
+            const dialog = document.getElementById('first-run-dialog');
+            if (!dialog) return Promise.resolve();
+
+            closeHelp();
+            preferenceDialogRequired = localStorage.getItem(PREFERENCE_KEYS.firstRunComplete) !== '1';
+            document.getElementById('first-run-title').textContent = preferenceDialogRequired ? '首次设置' : '偏好设置';
+            document.getElementById('setup-cancel-btn').textContent = preferenceDialogRequired ? '使用默认设置' : '取消';
+            document.getElementById('setup-mesh-enabled').checked = areMeshActionsEnabled();
+            const savedNavMode = localStorage.getItem('fbx_nav_mode') || currentNavMode || 'default';
+            document.querySelector(`input[name="setup-nav-mode"][value="${savedNavMode}"]`).checked = true;
+            const savedViewMode = localStorage.getItem('fbx_view_mode') || (isGridView ? 'grid' : 'list');
+            document.querySelector(`input[name="setup-view-mode"][value="${savedViewMode}"]`).checked = true;
+            document.getElementById('setup-open-help').checked = preferenceDialogRequired;
+
+            if (!dialog.open) dialog.showModal();
+            if (!preferenceDialogRequired || reopen) return Promise.resolve();
+            return new Promise(resolve => { preferenceDialogResolver = resolve; });
+        }
+
+        function applySavedPreferences(meshEnabled, navMode, viewMode) {
+            localStorage.setItem(PREFERENCE_KEYS.meshActionsEnabled, meshEnabled ? '1' : '0');
+            localStorage.setItem('fbx_nav_mode', navMode);
+            localStorage.setItem('fbx_view_mode', viewMode);
+            applyMeshActionPreference();
+
+            const navSelect = document.getElementById('nav-mode');
+            navSelect.value = navMode;
+            updateNavigationMode();
+
+            const wantsGrid = viewMode === 'grid';
+            if (wantsGrid !== isGridView) toggleViewMode();
+        }
+
+        function finishPreferencesDialog(useDefaults) {
+            const meshEnabled = useDefaults ? true : document.getElementById('setup-mesh-enabled').checked;
+            const navMode = useDefaults
+                ? 'default'
+                : document.querySelector('input[name="setup-nav-mode"]:checked').value;
+            const viewMode = useDefaults
+                ? 'list'
+                : document.querySelector('input[name="setup-view-mode"]:checked').value;
+            const openHelpAfter = useDefaults ? true : document.getElementById('setup-open-help').checked;
+
+            applySavedPreferences(meshEnabled, navMode, viewMode);
+            localStorage.setItem(PREFERENCE_KEYS.firstRunComplete, '1');
+            document.getElementById('first-run-dialog').close();
+
+            const resolve = preferenceDialogResolver;
+            preferenceDialogResolver = null;
+            preferenceDialogRequired = false;
+            if (resolve) resolve();
+            if (openHelpAfter) setTimeout(showHelp, 0);
+        }
+
+        function savePreferencesDialog() {
+            finishPreferencesDialog(false);
+        }
+
+        function cancelPreferencesDialog() {
+            if (preferenceDialogRequired) {
+                finishPreferencesDialog(true);
+                return;
+            }
+            document.getElementById('first-run-dialog').close();
+        }
+
+        function showToast(message, type = 'success') {
+            const stack = document.getElementById('toast-stack');
+            if (!stack || !message) return;
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            stack.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.add('show'));
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 180);
+            }, 2600);
+        }
+
+        async function writeClipboardText(text) {
+            if (!text) throw new Error('没有可复制的路径');
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            const copied = document.execCommand('copy');
+            textarea.remove();
+            if (!copied) throw new Error('剪贴板写入失败');
+        }
+
+        function displayNextCoachmark() {
+            if (activeCoachmark || coachmarkQueue.length === 0) return;
+            const layer = document.getElementById('coachmark-layer');
+            if (!layer) return;
+
+            activeCoachmark = coachmarkQueue.shift();
+            layer.innerHTML = `
+                <div class="coachmark">
+                    <div class="coachmark-copy">
+                        <div class="coachmark-title"></div>
+                        <div class="coachmark-message"></div>
+                    </div>
+                    <button class="coachmark-dismiss" type="button">知道了</button>
+                </div>
+            `;
+            layer.querySelector('.coachmark-title').textContent = activeCoachmark.title;
+            layer.querySelector('.coachmark-message').textContent = activeCoachmark.message;
+            layer.querySelector('.coachmark-dismiss').addEventListener('click', dismissCoachmark);
+            requestAnimationFrame(() => layer.classList.add('show'));
+        }
+
+        function showCoachmarkOnce(storageKey, title, message) {
+            if (!storageKey || localStorage.getItem(storageKey) === '1') return;
+            if (activeCoachmark?.storageKey === storageKey || coachmarkQueue.some(item => item.storageKey === storageKey)) return;
+            coachmarkQueue.push({ storageKey, title, message });
+            displayNextCoachmark();
+        }
+
+        function dismissCoachmark() {
+            const layer = document.getElementById('coachmark-layer');
+            if (!layer || !activeCoachmark) return;
+            localStorage.setItem(activeCoachmark.storageKey, '1');
+            layer.classList.remove('show');
+            activeCoachmark = null;
+            setTimeout(() => {
+                layer.innerHTML = '';
+                displayNextCoachmark();
+            }, 180);
+        }
+
+        function showFolderActionsHint() {
+            if (!isElectron) return;
+            showCoachmarkOnce(
+                ONBOARDING_HINT_KEYS.folderActions,
+                '模型可直接拖到 3ds Max',
+                '拖动列表或缩略图中的模型即可导入；悬停点“⋯”或右键可复制路径、打开文件夹。'
+            );
+        }
+
+        function showUVControlsHint() {
+            showCoachmarkOnce(
+                ONBOARDING_HINT_KEYS.uvControls,
+                'U / V 数值支持拖动',
+                '拖动带 ↔ 的 U / V 标签调整，Shift 精调；双击标签或点击 ↶ 重置。'
+            );
+        }
 
         if (window.electronAPI && window.pathAPI) {
             ipcRenderer = window.electronAPI;
@@ -1306,6 +1943,7 @@
                 const refreshBtn = document.getElementById('refresh-dir-btn'); // 修正ID
                 if(refreshBtn) refreshBtn.style.display = 'none';
                 document.getElementById('open-folder-btn').style.display = 'none'; 
+                document.getElementById('copy-mesh-path-btn').style.display = 'none';
                 document.querySelector('#file-list div').innerHTML = "Web模式: 请点击上方绿色按钮<br>打开包含FBX的文件夹";
             });
         } else {
@@ -1324,13 +1962,46 @@
             }
         }
 
-        function copyItemPath() {
+        async function copyItemPath() {
             if (ctxTargetIndex === -1) return;
             const item = currentDisplayList[ctxTargetIndex];
             if (item.fullPath) {
-                navigator.clipboard.writeText(item.fullPath).then(() => {
-                    console.log("路径已复制");
-                });
+                try {
+                    await writeClipboardText(item.fullPath);
+                    showToast('FBX 路径已复制');
+                } catch (error) {
+                    console.error('复制 FBX 路径失败:', error);
+                    showToast('复制 FBX 路径失败', 'error');
+                }
+            }
+        }
+
+        async function copyItemMeshPath() {
+            if (ctxTargetIndex === -1 || !isElectron) return;
+            const item = currentDisplayList[ctxTargetIndex];
+            if (!item || !item.fullPath) return;
+            await copyRelatedMeshPath(item.fullPath, item.name);
+        }
+
+        async function copyRelatedMeshPath(fbxPath, itemName) {
+            if (!isElectron || !fbxPath) {
+                showToast('当前模型没有可用的本地路径', 'error');
+                return false;
+            }
+
+            try {
+                const meshPath = await ipcRenderer.invoke('find-related-mesh-path', fbxPath);
+                if (!meshPath) {
+                    showToast(`未找到同名 .mesh：${itemName || '当前模型'}`, 'error');
+                    return false;
+                }
+                await writeClipboardText(meshPath);
+                showToast('.mesh 路径已复制');
+                return true;
+            } catch (error) {
+                console.error('复制 .mesh 路径失败:', error);
+                showToast('复制 .mesh 路径失败', 'error');
+                return false;
             }
         }
 
@@ -1387,6 +2058,17 @@
                 btn.classList.remove('active-filter');
             }
             renderFileList();
+        }
+
+        function attachFbxDrag(element, item) {
+            const canDrag = !!(isElectron && ipcRenderer && item && item.fullPath);
+            element.draggable = canDrag;
+            if (!canDrag) return;
+
+            element.ondragstart = (event) => {
+                event.preventDefault();
+                ipcRenderer.startFbxDrag(item.fullPath);
+            };
         }
 
         function renderFileList() {
@@ -1451,9 +2133,11 @@
                 
                 // 1. 生成 HTML (注意：这里把 onclick 删掉了，加上了 id 用于定位，或者直接用类名)
                 div.innerHTML = `
+                    <span class="item-drag-affordance" aria-hidden="true">⠿</span>
                     <span class="file-name-span">${item.isTemporary ? '[临时] ' : ''}${item.name}</span>
                     ${renderUVBadge(item)}
                     ${item.isTemporary ? '' : `<span class="fav-icon ${favClass}">★</span>`}
+                    <button class="item-actions-button" type="button" aria-label="更多操作" title="更多操作">⋯</button>
                 `;
                 // 2. 🟢 关键修复：使用 JS 直接绑定点击事件，完美避开所有转义字符问题
                 const starBtn = div.querySelector('.fav-icon');
@@ -1462,15 +2146,13 @@
                         toggleFavorite(e, item.relativePath);
                     };
                 }
+                const actionBtn = div.querySelector('.item-actions-button');
+                actionBtn.setAttribute('aria-label', `${item.name} 的更多操作`);
+                actionBtn.onclick = (event) => openItemActions(event, index, false);
                 
                 div.dataset.index = index;
-                div.draggable = true;
-                div.ondragstart = (e) => {
-                    e.preventDefault();
-                    if (isElectron && item.fullPath) {
-                        ipcRenderer.send('ondragstart', item.fullPath);
-                    }
-                };
+                attachFbxDrag(div, item);
+                div.oncontextmenu = (event) => showFileContextMenu(event, index, false);
                 if (currentSortType === 'date' && item.date) {
                     const dateStr = new Date(item.date).toLocaleString();
                     div.title = `${item.relativePath}\n修改时间: ${dateStr}`;
@@ -1494,6 +2176,17 @@
                     img.dataset.thumbnailKey = thumbnailKey;
                     img.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDUwIDUwIj48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZHk9Ii4zZW0iIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM1NTUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjgiPkZCWDwvdGV4dD48L3N2Zz4=';
                     const nm = document.createElement('div'); nm.className='thumb-name'; nm.textContent = item.name; nm.title=item.name;
+                    const dragAffordance = document.createElement('div');
+                    dragAffordance.className = 'item-drag-affordance';
+                    dragAffordance.textContent = '拖到 Max';
+                    dragAffordance.setAttribute('aria-hidden', 'true');
+                    const actionBtn = document.createElement('button');
+                    actionBtn.className = 'item-actions-button';
+                    actionBtn.type = 'button';
+                    actionBtn.textContent = '⋯';
+                    actionBtn.title = '更多操作';
+                    actionBtn.setAttribute('aria-label', `${item.name} 的更多操作`);
+                    actionBtn.onclick = (event) => openItemActions(event, index, true);
                     const gridBadgeHtml = renderUVBadge(item, 'grid');
                     if (gridBadgeHtml) {
                         const badgeTemplate = document.createElement('span');
@@ -1502,13 +2195,14 @@
                         if (gridBadge) gi.appendChild(gridBadge);
                     }
                     
-                    gi.append(favBtn, img, nm); // 把星星也加进去
+                    gi.append(favBtn, img, nm, dragAffordance, actionBtn); // 把星星和显式操作入口也加进去
                     
                     gi.onclick = () => { 
                         selectFile(item, index, null); 
                         document.querySelectorAll('.grid-item').forEach(g=>g.classList.remove('active')); 
                         gi.classList.add('active'); 
                     };
+                    attachFbxDrag(gi, item);
                     gridEl.appendChild(gi);
                     if(thumbnailCache.has(thumbnailKey)) img.src = thumbnailCache.get(thumbnailKey);
                     else if(canAutoGenerateThumbnails && isElectron) {
@@ -2099,6 +2793,7 @@
                     return item;
                 });
                 renderFileList();
+                if (files.length > 0) showFolderActionsHint();
 
                 const progressEl = document.getElementById('progress-info');
                 if (progressEl && !isThumbProcessing) {
@@ -2118,14 +2813,26 @@
 
         function revealInExplorer() { if (isElectron && currentFullFilePath) ipcRenderer.invoke('reveal-in-explorer', currentFullFilePath); }
         function filterFiles(query) { renderFileList(); }
-        function copyPath() {
+        async function copyPath() {
             const input = document.getElementById('selected-path-input'); if(!input || !input.value) return;
-            input.select(); document.execCommand('copy');
-            const btn = document.getElementById('copy-path-btn'); const originalText = btn.innerText;
-            btn.innerText = "✓"; setTimeout(() => { btn.innerText = originalText; }, 1000);
+            try {
+                await writeClipboardText(input.value);
+                const btn = document.getElementById('copy-path-btn'); const originalText = btn.innerText;
+                btn.innerText = "✓"; setTimeout(() => { btn.innerText = originalText; }, 1000);
+                showToast('FBX 路径已复制');
+            } catch (error) {
+                console.error('复制当前模型路径失败:', error);
+                showToast('复制 FBX 路径失败', 'error');
+            }
+        }
+
+        async function copyCurrentMeshPath() {
+            const item = currentDisplayList[currentSelectedIndex];
+            await copyRelatedMeshPath(currentFullFilePath, item?.name || '当前模型');
         }
 
         let scene, camera, renderer, controls, loader;
+        let animationFrameRequestId = 0;
         let gridHelper;
         let ddsLoader, tgaLoader, textureLoader; 
         let currentModel = null;
@@ -2244,17 +2951,8 @@
         }
 
         function resetUVParams() {
-            document.getElementById('tilingRange').value = 1.0; 
-            document.getElementById('tilingVal').innerText = "1.0";
-            document.getElementById('flowSpeed').value = 0.00;
-            document.getElementById('speedVal').innerText = "0.0";
-            document.getElementById('flowU').checked = false;
-            document.getElementById('flowV').checked = false;
-            if(matUV && matUV.map) {
-                matUV.map.repeat.set(1.0, 1.0);
-                matUV.map.offset.set(0,0);
-                matUV.map.needsUpdate = true;
-            }
+            resetUVMax({ recordHistory: false });
+            clearUVHistory();
         }
 
         async function initApp() {
@@ -2263,6 +2961,30 @@
             initSidebarResize();
             setupDragAndDrop();
             loadConfig();
+            document.addEventListener('pointerdown', (event) => {
+                const searchInput = document.getElementById('search-input');
+                if (document.activeElement === searchInput && !event.target.closest('#search-container')) {
+                    searchInput.blur();
+                }
+            }, true);
+            const helpDialog = document.getElementById('help-dialog');
+            if (helpDialog) {
+                helpDialog.addEventListener('click', (event) => {
+                    if (event.target === helpDialog) closeHelp();
+                });
+            }
+            const updateDialog = document.getElementById('update-dialog');
+            if (updateDialog) {
+                updateDialog.addEventListener('click', (event) => {
+                    if (event.target === updateDialog) closeUpdateDialog();
+                });
+            }
+            const firstRunDialog = document.getElementById('first-run-dialog');
+            if (firstRunDialog) {
+                firstRunDialog.addEventListener('cancel', (event) => {
+                    if (preferenceDialogRequired) event.preventDefault();
+                });
+            }
             if (isElectron && window.electronAPI && typeof window.electronAPI.onScanProgress === 'function') {
                 window.electronAPI.onScanProgress(progress => {
                     if (progress.requestId && progress.requestId !== activeScanRequestId) return;
@@ -2273,6 +2995,7 @@
             // 只有等它读完 JSON，favoriteSet 里才有数据，后面的 renderFileList 才能正确显示星星
             await loadFavoritesData();
             await loadUVMetadataCache();
+            await showFirstRunSetupIfNeeded();
             // 3. 最后再加载文件列表
             if (isElectron && ipcRenderer) {
                 const history = JSON.parse(localStorage.getItem('fbx_hist') || '[]');
@@ -2283,9 +3006,6 @@
                 scheduleSilentUpdateCheck();
             }
         }
-        // 执行启动
-        initApp();
-
         async function checkForUpdates(manual) {
             if (!isElectron || !ipcRenderer) {
                 if (manual) alert("Web 模式不支持检查更新");
@@ -2304,13 +3024,9 @@
                 }
 
                 if (result.updateAvailable) {
-                    const message = `发现新版本 ${result.latestVersion}，当前版本 ${result.currentVersion}。\n是否打开下载页面？`;
-                    if (confirm(message) && result.releaseUrl) {
-                        const opened = await ipcRenderer.invoke('open-external-url', result.releaseUrl);
-                        if (!opened && manual) alert("无法打开下载页面");
-                    }
+                    showUpdateDialog(result);
                 } else if (manual) {
-                    alert(`当前已是最新版本：${result.currentVersion}`);
+                    showToast(`当前已是最新版本：${result.currentVersion}`);
                 }
                 return result;
             } catch (error) {
@@ -2343,6 +3059,7 @@
             if(savedNavMode) { document.getElementById('nav-mode').value = savedNavMode; updateNavigationMode(); }
             const savedViewMode = localStorage.getItem('fbx_view_mode');
             if(savedViewMode === 'grid') { isGridView = false; toggleViewMode(); }
+            applyMeshActionPreference();
         }
 
         function updateNavigationMode() {
@@ -2359,6 +3076,7 @@
                     MIDDLE: THREE.MOUSE.PAN, 
                     RIGHT: null 
                 };
+                controls.enableMaxStyleMiddleButton = true;
                 
                 // 3ds Max 习惯：滚轮缩放速度稍微快一点
                 controls.zoomSpeed = 1.2; 
@@ -2372,6 +3090,7 @@
                     MIDDLE: THREE.MOUSE.DOLLY, 
                     RIGHT: THREE.MOUSE.PAN 
                 };
+                controls.enableMaxStyleMiddleButton = false;
                 
                 // 恢复默认缩放速度
                 controls.zoomSpeed = 1.0;
@@ -2721,6 +3440,7 @@
             // 切底色时，关闭纯线框(F3)，但保留实体线框(F4)状态
             isPureWireframe = false; 
             updateMaterialState();
+            if (currentBaseType === 'uv') showUVControlsHint();
         }
         // 2. 切换 F3 (纯线框)
         function toggleF3Mode() {
@@ -3034,8 +3754,7 @@
         const ctxGridOnly = document.getElementById('ctx-grid-only');
         const canvasMenu = document.getElementById('canvas-ctx-menu');
 
-        function showFileContextMenu(e, index, isGridMode) {
-            e.preventDefault();
+        function showFileContextMenuAt(index, isGridMode, pageX, pageY) {
             ctxTargetIndex = index;
             if (ctxTargetIndex !== currentSelectedIndex) {
                 selectFileByIndex(ctxTargetIndex);
@@ -3046,12 +3765,26 @@
             } else {
                 ctxGridOnly.style.display = 'none';
             }
+            fileMenu.style.visibility = 'hidden';
             fileMenu.style.display = 'block';
-            let menuH = isGridMode ? 145 : 70;
-            let top = e.pageY;
-            if (top + menuH > window.innerHeight) top -= menuH;
-            fileMenu.style.left = e.pageX + 'px';
+            const menuRect = fileMenu.getBoundingClientRect();
+            const left = Math.max(4, Math.min(pageX, window.innerWidth - menuRect.width - 4));
+            const top = Math.max(4, Math.min(pageY, window.innerHeight - menuRect.height - 4));
+            fileMenu.style.left = left + 'px';
             fileMenu.style.top = top + 'px';
+            fileMenu.style.visibility = 'visible';
+        }
+
+        function showFileContextMenu(e, index, isGridMode) {
+            e.preventDefault();
+            showFileContextMenuAt(index, isGridMode, e.pageX, e.pageY);
+        }
+
+        function openItemActions(event, index, isGridMode) {
+            event.preventDefault();
+            event.stopPropagation();
+            const rect = event.currentTarget.getBoundingClientRect();
+            showFileContextMenuAt(index, isGridMode, rect.right, rect.bottom + 4);
         }
 
         document.getElementById('file-grid').addEventListener('contextmenu', (e) => {
@@ -3216,7 +3949,7 @@ if (fileListEl) {
         }
 
         function animate() {
-            requestAnimationFrame(animate);
+            animationFrameRequestId = requestAnimationFrame(animate);
             
             // 1. 🟢 修复：驱动补间动画 (让 T/F/L/R/P 和 ViewCube 点击生效)
             if (window.TWEEN) TWEEN.update();
@@ -3504,14 +4237,139 @@ function changeGridSystem() {
     if(info) info.innerText = text;
     renderFrame(); // 刷新画面
 }
+const UV_HISTORY_LIMIT = 50;
+const UV_CONTROL_DEFAULTS = {
+    tileU: 1,
+    tileV: 1,
+    offU: 0,
+    offV: 0,
+    flowU_val: 0,
+    flowV_val: 0
+};
+let uvUndoStack = [];
+let uvRedoStack = [];
+let activeUVInputEdit = null;
+
+function readUVNumber(inputId, fallback) {
+    const input = document.getElementById(inputId);
+    const value = input ? Number.parseFloat(input.value) : NaN;
+    return Number.isFinite(value) ? value : fallback;
+}
+
+function getUVControlState() {
+    return {
+        tileU: readUVNumber('tileU', 1),
+        tileV: readUVNumber('tileV', 1),
+        offU: readUVNumber('offU', 0),
+        offV: readUVNumber('offV', 0),
+        flowU: readUVNumber('flowU_val', 0),
+        flowV: readUVNumber('flowV_val', 0),
+        wrapU: !!document.getElementById('wrapU')?.checked,
+        wrapV: !!document.getElementById('wrapV')?.checked
+    };
+}
+
+function areUVStatesEqual(a, b) {
+    return !!a && !!b && JSON.stringify(a) === JSON.stringify(b);
+}
+
+function setUVInputValue(inputId, value) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.value = String(Math.round(value * 10000) / 10000);
+}
+
+function updateUVResetButtons() {
+    Object.entries(UV_CONTROL_DEFAULTS).forEach(([inputId, defaultValue]) => {
+        const button = document.querySelector(`.uv-reset-btn[data-reset-input="${inputId}"]`);
+        if (!button) return;
+        const currentValue = readUVNumber(inputId, defaultValue);
+        button.classList.toggle('visible', Math.abs(currentValue - defaultValue) > 0.000001);
+    });
+}
+
+function resetUVControl(inputId) {
+    if (!Object.prototype.hasOwnProperty.call(UV_CONTROL_DEFAULTS, inputId)) return;
+    const previousState = getUVControlState();
+    setUVInputValue(inputId, UV_CONTROL_DEFAULTS[inputId]);
+    updateUVMax();
+    pushUVUndoState(previousState);
+
+    const field = document.getElementById(inputId)?.closest('.max-field');
+    if (field) {
+        field.classList.add('reset-flash');
+        setTimeout(() => field.classList.remove('reset-flash'), 320);
+    }
+}
+
+function applyUVControlState(state) {
+    if (!state) return;
+    setUVInputValue('tileU', state.tileU);
+    setUVInputValue('tileV', state.tileV);
+    setUVInputValue('offU', state.offU);
+    setUVInputValue('offV', state.offV);
+    setUVInputValue('flowU_val', state.flowU);
+    setUVInputValue('flowV_val', state.flowV);
+    if (document.getElementById('wrapU')) document.getElementById('wrapU').checked = state.wrapU;
+    if (document.getElementById('wrapV')) document.getElementById('wrapV').checked = state.wrapV;
+    updateUVMax();
+    updateUVWrap();
+}
+
+function pushUVUndoState(previousState) {
+    const currentState = getUVControlState();
+    if (!previousState || areUVStatesEqual(previousState, currentState)) return;
+    uvUndoStack.push(previousState);
+    if (uvUndoStack.length > UV_HISTORY_LIMIT) uvUndoStack.shift();
+    uvRedoStack = [];
+}
+
+function beginUVInputEdit(input) {
+    if (activeUVInputEdit?.input === input) return;
+    commitActiveUVInputEdit();
+    activeUVInputEdit = { input, state: getUVControlState() };
+}
+
+function commitActiveUVInputEdit(input) {
+    if (!activeUVInputEdit || (input && activeUVInputEdit.input !== input)) return;
+    const previousState = activeUVInputEdit.state;
+    activeUVInputEdit = null;
+    pushUVUndoState(previousState);
+}
+
+function undoUVChange() {
+    commitActiveUVInputEdit();
+    const previousState = uvUndoStack.pop();
+    if (!previousState) return false;
+    uvRedoStack.push(getUVControlState());
+    applyUVControlState(previousState);
+    return true;
+}
+
+function redoUVChange() {
+    commitActiveUVInputEdit();
+    const nextState = uvRedoStack.pop();
+    if (!nextState) return false;
+    uvUndoStack.push(getUVControlState());
+    applyUVControlState(nextState);
+    return true;
+}
+
+function clearUVHistory() {
+    uvUndoStack = [];
+    uvRedoStack = [];
+    activeUVInputEdit = null;
+}
+
 // 2. Max 风格 UV 更新逻辑
 function updateUVMax() {
+    updateUVResetButtons();
     if (!matUV || !matUV.map) return;
-    
-    const tileU = parseFloat(document.getElementById('tileU').value) || 1;
-    const tileV = parseFloat(document.getElementById('tileV').value) || 1;
-    const offU = parseFloat(document.getElementById('offU').value) || 0;
-    const offV = parseFloat(document.getElementById('offV').value) || 0;
+
+    const tileU = readUVNumber('tileU', 1);
+    const tileV = readUVNumber('tileV', 1);
+    const offU = readUVNumber('offU', 0);
+    const offV = readUVNumber('offV', 0);
     matUV.map.repeat.set(tileU, tileV);
     matUV.map.offset.set(offU, offV);
     matUV.needsUpdate = true;
@@ -3529,7 +4387,8 @@ function updateUVWrap() {
     matUV.map.needsUpdate = true;
     renderFrame();
 }
-function resetUVMax() {
+function resetUVMax({ recordHistory = true } = {}) {
+            const previousState = getUVControlState();
             // 1. 重置 平铺 (默认为 1)
             document.getElementById('tileU').value = 1;
             document.getElementById('tileV').value = 1;
@@ -3549,51 +4408,99 @@ function resetUVMax() {
             // 5. 立即刷新画面
             updateUVMax();
             updateUVWrap();
+            if (recordHistory) pushUVUndoState(previousState);
         }
 
 // --- 新增：数值拖拽功能 (仿 Max 实体操作) ---
         function initDraggableInputs() {
-            // 封装一个通用的拖拽绑定函数
-            // spanId: 点击的标签ID, inputId: 控制的输入框ID, step: 鼠标每移动1像素变化的数值
-            const setupDrag = (spanId, inputId, step) => {
-                const span = document.getElementById(spanId);
-                const input = document.getElementById(inputId);
+            const controlConfig = [
+                { labelId: 'lbl-tileU', inputId: 'tileU', defaultValue: 1, dragStep: 0.01, keyStep: 0.01 },
+                { labelId: 'lbl-tileV', inputId: 'tileV', defaultValue: 1, dragStep: 0.01, keyStep: 0.01 },
+                { labelId: 'lbl-offU', inputId: 'offU', defaultValue: 0, dragStep: 0.002, keyStep: 0.01 },
+                { labelId: 'lbl-offV', inputId: 'offV', defaultValue: 0, dragStep: 0.002, keyStep: 0.01 },
+                { labelId: 'lbl-flowU', inputId: 'flowU_val', defaultValue: 0, dragStep: 0.01, keyStep: 0.01 },
+                { labelId: 'lbl-flowV', inputId: 'flowV_val', defaultValue: 0, dragStep: 0.01, keyStep: 0.01 }
+            ];
+
+            const setupDrag = (config) => {
+                const span = document.getElementById(config.labelId);
+                const input = document.getElementById(config.inputId);
                 if (!span || !input) return;
-                let startX = 0;
-                let startVal = 0;
+                let lastX = 0;
+                let dragValue = 0;
+                let dragStartState = null;
+
                 const onMove = (e) => {
-                    const deltaX = e.clientX - startX;
-                    // 计算新数值
-                    let newVal = startVal + (deltaX * step);
-                    // 保留3位小数，避免 0.100000002 这种情况
-                    newVal = Math.round(newVal * 1000) / 1000;
-                    
-                    input.value = newVal;
-                    updateUVMax(); // 实时触发 UV 更新
+                    const multiplier = e.shiftKey ? 0.1 : (e.ctrlKey ? 10 : 1);
+                    dragValue += (e.clientX - lastX) * config.dragStep * multiplier;
+                    lastX = e.clientX;
+                    setUVInputValue(config.inputId, dragValue);
+                    updateUVMax();
                 };
+
                 const onUp = () => {
                     document.removeEventListener('mousemove', onMove);
                     document.removeEventListener('mouseup', onUp);
-                    document.body.classList.remove('is-dragging'); // 恢复鼠标样式
+                    document.body.classList.remove('is-dragging');
+                    pushUVUndoState(dragStartState);
                 };
+
                 span.addEventListener('mousedown', (e) => {
-                    e.preventDefault(); // 防止选中文字
-                    startX = e.clientX;
-                    startVal = parseFloat(input.value) || 0;
-                    
-                    document.body.classList.add('is-dragging'); // 强制鼠标变为左右箭头
+                    e.preventDefault();
+                    commitActiveUVInputEdit();
+                    dragStartState = getUVControlState();
+                    lastX = e.clientX;
+                    dragValue = readUVNumber(config.inputId, config.defaultValue);
+                    document.body.classList.add('is-dragging');
                     document.addEventListener('mousemove', onMove);
                     document.addEventListener('mouseup', onUp);
                 });
+
+                span.addEventListener('dblclick', (e) => {
+                    e.preventDefault();
+                    const previousState = getUVControlState();
+                    setUVInputValue(config.inputId, config.defaultValue);
+                    updateUVMax();
+                    pushUVUndoState(previousState);
+                });
+
+                input.addEventListener('focus', () => {
+                    beginUVInputEdit(input);
+                    requestAnimationFrame(() => input.select());
+                });
+                input.addEventListener('change', () => commitActiveUVInputEdit(input));
+                input.addEventListener('blur', () => commitActiveUVInputEdit(input));
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        input.blur();
+                        return;
+                    }
+                    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+
+                    e.preventDefault();
+                    beginUVInputEdit(input);
+                    const multiplier = e.shiftKey ? 0.1 : (e.ctrlKey ? 10 : 1);
+                    const direction = e.key === 'ArrowUp' ? 1 : -1;
+                    const currentValue = readUVNumber(config.inputId, config.defaultValue);
+                    setUVInputValue(config.inputId, currentValue + direction * config.keyStep * multiplier);
+                    updateUVMax();
+                });
             };
-            // 绑定四个参数
-            // 平铺灵敏度设为 0.05 (动得快一点)，偏移设为 0.01 (动得慢一点)
-            setupDrag('lbl-tileU', 'tileU', 0.05);
-            setupDrag('lbl-tileV', 'tileV', 0.05);
-            setupDrag('lbl-offU',  'offU',  0.01);
-            setupDrag('lbl-offV',  'offV',  0.01);
-            setupDrag('lbl-flowU', 'flowU_val', 0.05);
-            setupDrag('lbl-flowV', 'flowV_val', 0.05);
+
+            controlConfig.forEach(setupDrag);
+            updateUVResetButtons();
+
+            ['wrapU', 'wrapV'].forEach((checkboxId) => {
+                const checkbox = document.getElementById(checkboxId);
+                if (!checkbox) return;
+                let previousState = null;
+                checkbox.addEventListener('focus', () => { previousState = getUVControlState(); });
+                checkbox.addEventListener('mousedown', () => { previousState = getUVControlState(); });
+                checkbox.addEventListener('change', () => {
+                    pushUVUndoState(previousState);
+                    previousState = getUVControlState();
+                });
+            });
         }
 
         // --- 🟢 新增：点击按钮后强制失去焦点，防止空格/回车重复触发 ---
@@ -3654,10 +4561,30 @@ function resetUVMax() {
     // 🟢 最终修复：全局按键监听 (修复 G 键变量引用)
     // =========================================================
     window.addEventListener('keydown', (e) => {
-        const tag = e.target.tagName;
+        const tag = e.target?.tagName || '';
+        const isEditable = tag === 'INPUT' || tag === 'TEXTAREA';
+        const isUVControl = !!e.target?.closest?.('#uv-control-panel');
+        const hasCommandModifier = e.ctrlKey || e.metaKey;
+        const key = e.key.toLowerCase();
+        const wantsUndo = hasCommandModifier && key === 'z' && !e.shiftKey;
+        const wantsRedo = hasCommandModifier && (key === 'y' || (key === 'z' && e.shiftKey));
+
+        if (e.key === 'F1') {
+            e.preventDefault();
+            showHelp();
+            return;
+        }
+
+        if ((wantsUndo || wantsRedo) && (isUVControl || !isEditable)) {
+            e.preventDefault();
+            if (wantsUndo) undoUVChange();
+            else redoUVChange();
+            return;
+        }
+
         // 如果正在输入文字，不触发快捷键
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-        const k = e.key.toLowerCase();
+        if (isEditable) return;
+        const k = key;
         
         // --- 视图切换 ---
         if(k === 't') switchView('top');
@@ -3728,19 +4655,16 @@ function resetUVMax() {
         // --- Max 模式 Alt 键 ---
         if ((e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight') && currentNavMode === 'max') {
             e.preventDefault(); 
-            if(controls) {
-                controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
-                controls.update(); 
-            }
         }
     });
-    // 监听 Alt 键松开
-    window.addEventListener('keyup', (e) => {
-        if((e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight') && currentNavMode === 'max') {
-            if(controls) {
-                controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
-                controls.update();
-            }
+
+    // 所有配置和事件处理器就绪后再启动，避免初始化期间访问尚未声明的状态。
+    initApp().catch(error => {
+        console.error("应用初始化失败:", error);
+        const loading = document.getElementById('loading-overlay');
+        if (loading) {
+            loading.style.display = 'flex';
+            loading.innerText = "应用初始化失败，请重启后重试";
         }
     });
 

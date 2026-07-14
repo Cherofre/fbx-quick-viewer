@@ -7,8 +7,8 @@
 - 项目类型：Electron + Three.js 的 Windows 本地 FBX 预览工具。
 - 入口文件：`main.js` 是 Electron 主进程，`index.html` 承载主要界面和渲染层逻辑。
 - 本地库文件：`libs/` 下保存 Three.js、FBXLoader、OrbitControls 以及贴图加载器等前端依赖。
-- 当前版本号以 `package.json` 为准，当前为 `1.0.4`。
-- 运行环境：Node.js 18+、npm、Windows。
+- 当前版本号以 `package.json` 为准，当前为 `1.0.5`。
+- 开发环境：Node.js 22.12+、npm、Windows 10/11。
 
 ## 常用命令
 
@@ -22,7 +22,7 @@ npm run dist
 - `npm start`：开发运行 Electron 应用。
 - `npm run pack`：生成未安装的可执行目录。
 - `npm run dist`：通过 electron-builder 生成 Windows 安装包和便携版。
-- 当前已配置 `npm test`，会运行拖入 FBX、v1.0.4 功能约束和 Electron 启动 smoke 检查；完成修改后仍应按风险补充 `npm run pack` 或手动验证。
+- 当前已配置 `npm test`，会运行 `.mesh` 路径、UV 数值与撤销、3ds Max 操作模式、操作可发现性、FBX 拖入/拖出、v1.0.4 功能约束和 Electron 启动 smoke 检查；完成修改后仍应按风险补充 `npm run pack` 或手动验证。
 
 ## 本项目注意事项
 

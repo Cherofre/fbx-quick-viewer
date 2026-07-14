@@ -82,7 +82,9 @@
 				LEFT: THREE.MOUSE.ROTATE,
 				MIDDLE: THREE.MOUSE.DOLLY,
 				RIGHT: THREE.MOUSE.PAN
-			}; // Touch fingers
+			};
+			this.enableMaxStyleMiddleButton = false; // Middle drag can switch between pan and Alt+rotate while held.
+			// Touch fingers
 
 			this.touches = {
 				ONE: THREE.TOUCH.ROTATE,
@@ -755,7 +757,9 @@
 						break;
 
 					case 1:
-						mouseAction = scope.mouseButtons.MIDDLE;
+						mouseAction = scope.enableMaxStyleMiddleButton
+							? ( event.altKey ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN )
+							: scope.mouseButtons.MIDDLE;
 						break;
 
 					case 2:
@@ -828,6 +832,29 @@
 
 				if ( scope.enabled === false ) return;
 				event.preventDefault();
+
+				if ( scope.enableMaxStyleMiddleButton && ( event.buttons & 4 ) !== 0 ) {
+
+					const nextState = event.altKey ? STATE.ROTATE : STATE.PAN;
+
+					if ( state !== nextState ) {
+
+						if ( nextState === STATE.ROTATE ) {
+
+							handleMouseDownRotate( event );
+
+						} else {
+
+							handleMouseDownPan( event );
+
+						}
+
+						state = nextState;
+						return;
+
+					}
+
+				}
 
 				switch ( state ) {
 

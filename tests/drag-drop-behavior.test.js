@@ -5,6 +5,7 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const indexHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const mainJs = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
+const preloadJs = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 function assertContains(source, text, label) {
@@ -14,12 +15,34 @@ function assertContains(source, text, label) {
     );
 }
 
-assert.strictEqual(packageJson.version, '1.0.4', 'package version should be bumped for the new release');
-assert.strictEqual(packageJson.scripts.test, 'node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js && node tests/electron-smoke.test.js', 'npm test should run the regression suites');
+assert.strictEqual(packageJson.version, '1.0.5', 'package version should be bumped for the new release');
+assert.strictEqual(packageJson.scripts.test, 'node tests/mesh-path-resolution.test.js && node tests/v1.0.5-uv-controls.test.js && node tests/v1.0.5-max-navigation.test.js && node tests/v1.0.5-discoverability.test.js && node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js && node tests/electron-smoke.test.js', 'npm test should run the regression suites');
+assert(packageJson.build.files.includes('mesh-path.js'), 'mesh path resolver should be included in packaged builds');
 
 assertContains(mainJs, "ipcMain.handle('get-file-info'", 'main process');
+assertContains(mainJs, 'function getDraggableFbxPath(filePath)', 'main process drag-out validation');
+assertContains(mainJs, "ipcMain.on('start-fbx-drag'", 'main process drag-out IPC');
+assertContains(mainJs, 'if (!isTrustedSender(event)) return;', 'main process drag-out IPC');
+assertContains(mainJs, "path.extname(resolvedPath).toLowerCase() !== '.fbx'", 'main process drag-out validation');
+assertContains(mainJs, 'event.sender.startDrag({', 'main process native drag');
+assertContains(mainJs, "sourceIcon.resize({ width: 32, height: 32, quality: 'best' })", 'main process drag icon sizing');
+assertContains(mainJs, "ipcMain.handle('find-related-mesh-path'", 'main process mesh path IPC');
+assertContains(preloadJs, 'startFbxDrag(filePath)', 'preload drag-out API');
+assertContains(preloadJs, "ipcRenderer.send('start-fbx-drag', filePath)", 'preload drag-out IPC');
+assertContains(preloadJs, "'find-related-mesh-path'", 'preload mesh path IPC');
 
 assertContains(indexHtml, 'const THUMBNAIL_AUTO_GENERATE_LIMIT = 300;', 'renderer');
+assertContains(indexHtml, 'function attachFbxDrag(element, item)', 'renderer drag-out helper');
+assertContains(indexHtml, 'ipcRenderer.startFbxDrag(item.fullPath);', 'renderer drag-out helper');
+assertContains(indexHtml, 'async function copyItemMeshPath()', 'renderer mesh path copy action');
+assertContains(indexHtml, "ipcRenderer.invoke('find-related-mesh-path', fbxPath)", 'renderer shared mesh path lookup');
+assertContains(indexHtml, 'div.oncontextmenu = (event) => showFileContextMenu(event, index, false);', 'list item context menu');
+assertContains(indexHtml, '复制 .mesh 路径', 'file context menu');
+assert.strictEqual(
+    [...indexHtml.matchAll(/attachFbxDrag\((?:div|gi), item\);/g)].length,
+    2,
+    'list and grid items should both support native drag-out'
+);
 assertContains(indexHtml, 'let temporaryDroppedFbxItem = null;', 'renderer');
 assertContains(indexHtml, 'function isFbxFile(file)', 'renderer');
 assertContains(indexHtml, 'async function loadDroppedFbx(file)', 'renderer');
