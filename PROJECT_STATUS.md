@@ -2,7 +2,7 @@
 
 - Last Updated: 2026-07-31
 - Branch: `release/v1.0.6`
-- Worktree: Dirty release-candidate changes are ready for the v1.0.6 release-preparation commit; `dist/` remains ignored.
+- Worktree: Clean after the v1.0.6 release-candidate and ledger commits; `dist/` remains ignored.
 - Superpowers Phase: Not active for this release.
 - Superpowers Plan: None; existing plans describe earlier releases and features.
 - Goal: Prepare v1.0.6 with Windows FBX default-app registration, configurable current/new-window external opens, independent texture rotation controls, and the accumulated UI fixes.
@@ -25,6 +25,7 @@
 - `latest.yml` SHA-256: `B6ABC88594D657F1E03C826BF310201268C3AB27F2334065744BDA41C9A34486`.
 - Installer blockmap SHA-256: `55B2A6E48BED96F69816F41DA79F27C81B14040B2BB2D8F5AFF628C08542F652`.
 - `git diff --check` passed; `git status` contains no `dist/`, cache, log, or runtime-data files.
+- Release-candidate commit: `13acc2956906c002557d8483c770b3f352e25163` (`release: prepare v1.0.6`).
 
 ### Published v1.0.5 baseline
 

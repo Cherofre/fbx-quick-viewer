@@ -29,7 +29,7 @@
 ## Git 收口
 
 - [x] 检查 `git diff --check`、`git status` 和最终差异，确认没有缓存、日志、`dist` 或 `FBX_Data` 被纳入提交。
-- [ ] 将确认后的文件提交到 `release/v1.0.6`。
+- [x] 将发布候选提交到 `release/v1.0.6`：`13acc29`。
 - [ ] 将 `release/v1.0.6` 合并到稳定分支 `master`。
 - [ ] 在合并后的发布提交创建 tag `1.0.6`。
 - [ ] 推送 `master`、release 分支和 tag。
