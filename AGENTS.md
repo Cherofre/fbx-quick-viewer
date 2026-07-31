@@ -7,7 +7,7 @@
 - 项目类型：Electron + Three.js 的 Windows 本地 FBX 预览工具。
 - 入口文件：`main.js` 是 Electron 主进程，`index.html` 承载主要界面和渲染层逻辑。
 - 本地库文件：`libs/` 下保存 Three.js、FBXLoader、OrbitControls 以及贴图加载器等前端依赖。
-- 当前版本号以 `package.json` 为准，当前为 `1.0.5`。
+- 当前版本号以 `package.json` 为准，当前为 `1.0.6`。
 - 开发环境：Node.js 22.12+、npm、Windows 10/11。
 
 ## 常用命令

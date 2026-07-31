@@ -1,5 +1,40 @@
 ## Active Decisions
 
+### Register as an FBX default-app candidate without overriding Windows consent
+
+- Status: active
+- Date: 2026-07-31
+- Decision: The installed build registers a per-user ProgID, OpenWith entry, capabilities, and RegisteredApplications record for `.fbx`, but never writes the protected `UserChoice` key. The portable build does not register associations.
+- Reason: Users need to select the viewer as their FBX default application, while Windows must retain final control over the default-app choice and uninstall cleanup must remain predictable.
+
+### Keep current-window preview as the default external-open behavior
+
+- Status: active
+- Date: 2026-07-31
+- Decision: FBX files opened from Explorer default to a temporary item in the current window while preserving the current directory. Preferences can switch future external opens to a new window; cold start always uses the first window.
+- Reason: The viewer is primarily an asset browser, so preserving the current directory is less disruptive. A configurable new-window mode supports comparison workflows without forcing every user into multi-window behavior.
+
+### Run preview windows in one process with per-window scan state
+
+- Status: active
+- Date: 2026-07-31
+- Decision: Keep Electron's single-instance lock and create additional `BrowserWindow` instances inside the same process. Track renderer readiness, pending file opens, initial paths, and active scans by `webContents.id`.
+- Reason: Separate application processes would increase updater and shared-data conflicts. Per-window state inside one process preserves shared preferences and cache while preventing scans and file-open queues from canceling each other.
+
+### Separate fixed texture angle from continuous rotation speed
+
+- Status: active
+- Date: 2026-07-31
+- Decision: Treat the angle input as a fixed base angle and maintain continuous rotation in a separate phase driven by degrees per second. Loading a replacement texture keeps all current preview parameters.
+- Reason: Artists need a stable orientation value and an independent motion preview; changing the angle field during animation makes the control unpredictable and difficult to reset or undo.
+
+### Release these changes as v1.0.6
+
+- Status: active
+- Date: 2026-07-31
+- Decision: Package the Windows association, external-open modes, multi-window isolation, texture rotation, and related UI fixes as version 1.0.6.
+- Reason: The feature set is backward compatible but materially extends v1.0.5. A newer version is also required to exercise the installed 1.0.5 automatic-update path end to end.
+
 ### Add automatic downloads to the v1.0.5 installer
 
 - Status: active

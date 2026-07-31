@@ -9,7 +9,14 @@ function assertContains(text, label) {
     assert(indexHtml.includes(text), `renderer should contain ${label}: ${JSON.stringify(text)}`);
 }
 
-assertContains('id="help-btn"', 'visible help button');
+assertContains('id="header-more-btn"', 'compact header actions menu');
+assertContains('id="header-more-menu" role="menu"', 'header actions menu');
+assertContains('#header-more-menu.show { display: flex; flex-direction: column; }', 'vertical header menu layout');
+assertContains('#sidebar-header { position: relative; z-index: 120; overflow: visible;', 'unclipped header menu layer');
+assertContains('id="help-btn"', 'help menu item');
+assertContains('id="check-update-icon" class="header-menu-icon">↻</span>', 'stable update icon');
+assertContains('id="check-update-label">检查更新</span>', 'independent update label');
+assertContains("if (label) label.textContent = '检查中...';", 'non-destructive update checking state');
 assertContains('id="help-dialog"', 'compact help dialog');
 assertContains('function showHelp()', 'help dialog controller');
 assertContains("if (e.key === 'F1')", 'F1 help shortcut');
@@ -56,8 +63,13 @@ assertContains('await showFirstRunSetupIfNeeded();', 'startup waits for first-ru
 assertContains('function applyMeshActionPreference()', 'mesh action visibility preference');
 assertContains('controls.enableMaxStyleMiddleButton = true;', 'saved Max navigation preference');
 assertContains("input[name=\"setup-view-mode\"]", 'list/grid first-run choice');
-assertContains('id="settings-btn"', 'visible preferences button');
-assertContains('onclick="showPreferencesDialog(true)"', 'reopenable preferences');
+assertContains("input[name=\"setup-external-open-mode\"]", 'external FBX window preference');
+assertContains('id="settings-btn"', 'preferences menu item');
+assertContains('showPreferencesDialog(true)', 'reopenable preferences');
+assertContains('function toggleHeaderMoreMenu(event)', 'header actions menu controller');
+assertContains('function closeHeaderMoreMenu()', 'header actions menu dismissal');
+assertContains('class="folder-open-row"', 'grouped folder actions');
+assertContains('id="history-btn" type="button" onclick="toggleHistory()" title="最近目录">最近</button>', 'recent folders beside open folder');
 assertContains('name="setup-nav-mode" value="default"', 'default navigation segment');
 assertContains('name="setup-nav-mode" value="max"', 'Max navigation segment');
 assert(!indexHtml.includes('<select id="setup-nav-mode"'), 'first-run navigation should avoid the flickering native dropdown');

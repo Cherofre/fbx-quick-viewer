@@ -6,15 +6,22 @@ const crypto = require('crypto');
 const https = require('https');
 const { pathToFileURL } = require('url');
 const { findRelatedMeshPath } = require('./mesh-path');
+const { findOpenFbxPath } = require('./open-fbx');
 const { createAutoUpdateController } = require('./auto-update');
 
 let mainWindow;
+let lastFocusedWindow;
+const appWindows = new Set();
+const rendererOpenFileReady = new Set();
+const initialOpenFbxPaths = new Map();
+const pendingOpenFbxPaths = new Map();
+const activeScans = new Map();
 let cachedDataDir = null;
 let cachedThumbnailDataDir = null;
 let thumbnailCachePromptedThisSession = false;
-let activeScan = null;
 let dragIcon = null;
 let autoUpdateController = null;
+let initialProcessFbxPath = findOpenFbxPath(process.argv);
 const LOCAL_FILE_SCHEME = 'fbx-local';
 const THUMBNAIL_CACHE_CONFIG_NAME = 'thumbnail-cache-dir.json';
 const ALLOWED_LOCAL_FILE_EXTENSIONS = new Set(['.fbx', '.png', '.jpg', '.jpeg', '.bmp', '.gif', '.dds', '.tga']);
@@ -34,6 +41,57 @@ protocol.registerSchemesAsPrivileged([
     }
 ]);
 
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+    app.quit();
+} else {
+    app.on('second-instance', (_event, commandLine) => {
+        const filePath = findOpenFbxPath(commandLine);
+        const focusResult = focusMainWindow();
+        if (filePath) {
+            const delayMs = focusResult?.wasRevealed ? 160 : 0;
+            setTimeout(() => queueOpenFbxPath(filePath, focusResult?.targetWindow), delayMs);
+        }
+    });
+}
+
+function focusMainWindow() {
+    const targetWindow = getActiveWindow();
+    if (!targetWindow) return null;
+
+    const wasMinimized = targetWindow.isMinimized();
+    const wasHidden = !targetWindow.isVisible();
+    if (wasMinimized) targetWindow.restore();
+    else if (wasHidden) targetWindow.show();
+    if (!targetWindow.isFocused()) targetWindow.focus();
+    if (!targetWindow.webContents.isDestroyed() && typeof targetWindow.webContents.invalidate === 'function') {
+        targetWindow.webContents.invalidate();
+    }
+    return { targetWindow, wasRevealed: wasMinimized || wasHidden };
+}
+
+function getActiveWindow() {
+    if (lastFocusedWindow && !lastFocusedWindow.isDestroyed()) return lastFocusedWindow;
+    if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
+    return [...appWindows].find(window => !window.isDestroyed()) || null;
+}
+
+function queueOpenFbxPath(filePath, preferredWindow = null) {
+    if (!filePath) return;
+    const targetWindow = preferredWindow && !preferredWindow.isDestroyed() ? preferredWindow : getActiveWindow();
+    if (!targetWindow) return;
+
+    const senderId = targetWindow.webContents.id;
+    if (rendererOpenFileReady.has(senderId)) {
+        targetWindow.webContents.send('open-fbx-file', filePath);
+        return;
+    }
+
+    const pendingPaths = pendingOpenFbxPaths.get(senderId) || [];
+    pendingPaths.push(filePath);
+    pendingOpenFbxPaths.set(senderId, pendingPaths);
+}
+
 // --- 新增：获取窗口配置文件路径 ---
 function getWindowStatePath() {
     // 🟢 改为存到 Data 目录
@@ -42,12 +100,12 @@ function getWindowStatePath() {
 
 
 // --- 新增：保存窗口状态 ---
-function saveWindowState() {
-    if (!mainWindow) return;
+function saveWindowState(targetWindow = getActiveWindow()) {
+    if (!targetWindow || targetWindow.isDestroyed()) return;
     try {
-        const isMaximized = mainWindow.isMaximized();
+        const isMaximized = targetWindow.isMaximized();
         // 如果最大化了，获取的是最大化前的 bounds，还是需要保存 maximized 标记
-        const bounds = mainWindow.getBounds(); 
+        const bounds = targetWindow.getBounds();
         
         const state = {
             width: bounds.width,
@@ -78,18 +136,22 @@ function loadWindowState() {
     return { width: 1440, height: 900, isMaximized: false };
 }
 
-function createWindow() {
+function createWindow(options = {}) {
+    const isPrimaryWindow = !mainWindow || options.primary === true;
     // 1. 加载保存的状态
     const state = loadWindowState();
     const shouldShowWindow = process.env.FBX_QUICK_VIEWER_SMOKE !== '1';
+    const activeWindow = getActiveWindow();
+    const activeBounds = activeWindow && !activeWindow.isDestroyed() ? activeWindow.getBounds() : null;
 
     // 2. 使用保存的宽、高、位置创建窗口
-    mainWindow = new BrowserWindow({
-        width: state.width,
-        height: state.height,
-        x: state.x, // 如果 undefined，Electron 会自动居中
-        y: state.y,
+    const browserWindow = new BrowserWindow({
+        width: isPrimaryWindow ? state.width : (activeBounds?.width || state.width),
+        height: isPrimaryWindow ? state.height : (activeBounds?.height || state.height),
+        x: isPrimaryWindow ? state.x : (activeBounds ? activeBounds.x + 24 : undefined),
+        y: isPrimaryWindow ? state.y : (activeBounds ? activeBounds.y + 24 : undefined),
         title: "FBX 快速预览器",
+        backgroundColor: '#404040',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -99,28 +161,33 @@ function createWindow() {
         },
         show: false // 先隐藏，设置好最大化状态后再显示，避免闪烁
     });
+    const senderId = browserWindow.webContents.id;
+    appWindows.add(browserWindow);
+    lastFocusedWindow = browserWindow;
+    if (!mainWindow || mainWindow.isDestroyed()) mainWindow = browserWindow;
+    if (options.initialFbxPath) initialOpenFbxPaths.set(senderId, options.initialFbxPath);
 
     // 3. 恢复最大化状态
-    if (state.isMaximized) {
-        mainWindow.maximize();
+    if (isPrimaryWindow && state.isMaximized) {
+        browserWindow.maximize();
     }
     
     // 准备好后再显示窗口
-    if (shouldShowWindow) mainWindow.show();
+    if (shouldShowWindow) browserWindow.show();
 
-    mainWindow.setMenu(null);
-    mainWindow.loadFile(path.join(__dirname, 'index.html'));
+    browserWindow.setMenu(null);
+    browserWindow.loadFile(path.join(__dirname, 'index.html'));
 
-    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    browserWindow.webContents.setWindowOpenHandler(({ url }) => {
         if (isAllowedExternalUrl(url)) {
             shell.openExternal(url).catch(error => console.error('打开外部链接失败:', error));
         }
         return { action: 'deny' };
     });
 
-    mainWindow.webContents.on('will-navigate', (event, url) => {
+    browserWindow.webContents.on('will-navigate', (event, url) => {
         const targetUrl = String(url || '');
-        if (targetUrl && targetUrl !== mainWindow.webContents.getURL()) {
+        if (targetUrl && targetUrl !== browserWindow.webContents.getURL()) {
             event.preventDefault();
         }
     });
@@ -129,21 +196,39 @@ function createWindow() {
     // mainWindow.webContents.openDevTools();
 
     // --- 新增：监听关闭事件，保存状态 ---
-    mainWindow.on('close', () => {
-        saveWindowState();
+    browserWindow.on('focus', () => {
+        lastFocusedWindow = browserWindow;
     });
 
-    mainWindow.webContents.on('did-finish-load', () => {
-        initCacheDirectory().catch(error => console.error('初始化缩略图缓存目录失败:', error));
-        runSmokeAssertions();
+    browserWindow.on('close', () => {
+        if (isPrimaryWindow) saveWindowState(browserWindow);
     });
+
+    browserWindow.on('closed', () => {
+        appWindows.delete(browserWindow);
+        rendererOpenFileReady.delete(senderId);
+        initialOpenFbxPaths.delete(senderId);
+        pendingOpenFbxPaths.delete(senderId);
+        const scanState = activeScans.get(senderId);
+        if (scanState) scanState.canceled = true;
+        activeScans.delete(senderId);
+        if (mainWindow === browserWindow) mainWindow = [...appWindows][0] || null;
+        if (lastFocusedWindow === browserWindow) lastFocusedWindow = mainWindow;
+    });
+
+    browserWindow.webContents.on('did-finish-load', () => {
+        initCacheDirectory().catch(error => console.error('初始化缩略图缓存目录失败:', error));
+        if (isPrimaryWindow) runSmokeAssertions(browserWindow);
+    });
+
+    return browserWindow;
 }
 
-function runSmokeAssertions() {
-    if (process.env.FBX_QUICK_VIEWER_SMOKE !== '1' || !mainWindow) return;
+function runSmokeAssertions(targetWindow) {
+    if (process.env.FBX_QUICK_VIEWER_SMOKE !== '1' || !targetWindow || targetWindow.isDestroyed()) return;
 
     const smokeFilePath = JSON.stringify(process.env.FBX_QUICK_VIEWER_SMOKE_FILE || '');
-    mainWindow.webContents.executeJavaScript(`
+    targetWindow.webContents.executeJavaScript(`
         (async () => {
             if (!window.electronAPI || !window.electronAPI.invoke || !window.pathAPI || !window.pathAPI.join) {
                 return { ok: false, reason: 'preload APIs are not available in renderer' };
@@ -168,7 +253,9 @@ function runSmokeAssertions() {
             }
 
             const tileUInput = document.getElementById('tileU');
-            if (!tileUInput || !matUV || !matUV.map) {
+            const rotationAngleInput = document.getElementById('rotationAngle');
+            const rotationSpeedInput = document.getElementById('rotationSpeed');
+            if (!tileUInput || !rotationAngleInput || !rotationSpeedInput || !matUV || !matUV.map) {
                 return { ok: false, reason: 'UV preview controls are not initialized' };
             }
 
@@ -208,16 +295,52 @@ function runSmokeAssertions() {
             if (!redoUVChange() || Number(tileUInput.value) !== 1.25) {
                 return { ok: false, reason: 'UV redo did not restore the edited value' };
             }
+
+            rotationAngleInput.value = '90';
+            rotationSpeedInput.value = '0';
+            updateUVMax();
+            if (Math.abs(matUV.map.center.x - 0.5) > 0.000001 || Math.abs(matUV.map.center.y - 0.5) > 0.000001 || Math.abs(matUV.map.rotation - Math.PI / 2) > 0.000001) {
+                return { ok: false, reason: 'texture angle was not applied around the texture center' };
+            }
+            resetUVRotationPhase();
+            rotationAngleInput.value = '15';
+            rotationSpeedInput.value = '60';
+            advanceUVRotation(0.5);
+            if (Number(rotationAngleInput.value) !== 15 || Math.abs(matUV.map.rotation - Math.PI / 4) > 0.000001) {
+                return { ok: false, reason: 'texture rotation speed did not remain independent from the fixed angle' };
+            }
+            resetUVRotationPhase();
             applyUVControlState(originalUVState);
             clearUVHistory();
 
+            if (smokeFile) {
+                localStorage.setItem('fbx_first_run_setup_v1', '1');
+                const opened = await window.electronAPI.invoke('open-fbx-in-new-window', smokeFile);
+                if (!opened) {
+                    return { ok: false, reason: 'new preview window request failed' };
+                }
+            }
+
             return { ok: true };
         })()
-    `).then(result => {
+    `).then(async result => {
         if (!result || !result.ok) {
             console.error('Smoke check failed:', result && result.reason ? result.reason : result);
             app.exit(1);
             return;
+        }
+
+        if (process.env.FBX_QUICK_VIEWER_SMOKE_FILE) {
+            const deadline = Date.now() + 5000;
+            while (appWindows.size < 2 && Date.now() < deadline) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+            const secondaryWindow = [...appWindows].find(browserWindow => browserWindow !== targetWindow && !browserWindow.isDestroyed());
+            if (!secondaryWindow || secondaryWindow.webContents.isDestroyed()) {
+                console.error('Smoke check failed: new preview window was not created');
+                app.exit(1);
+                return;
+            }
         }
         console.log('Smoke check passed: preload APIs and local file protocol are available');
         app.exit(0);
@@ -265,7 +388,8 @@ function registerLocalFileProtocol() {
 
 app.whenReady().then(() => {
     registerLocalFileProtocol();
-    createWindow();
+    createWindow({ primary: true, initialFbxPath: initialProcessFbxPath });
+    initialProcessFbxPath = '';
     autoUpdateController = createAutoUpdateController({
         app,
         autoUpdater,
@@ -275,6 +399,31 @@ app.whenReady().then(() => {
     autoUpdateController.setup();
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+
+ipcMain.handle('consume-open-fbx-path', (event) => {
+    if (!isTrustedSender(event)) return '';
+    const senderId = event.sender.id;
+    const filePath = initialOpenFbxPaths.get(senderId) || '';
+    initialOpenFbxPaths.delete(senderId);
+    return filePath;
+});
+
+ipcMain.on('renderer-open-file-ready', (event) => {
+    if (!isTrustedSender(event)) return;
+    const senderId = event.sender.id;
+    rendererOpenFileReady.add(senderId);
+    const pendingPaths = pendingOpenFbxPaths.get(senderId) || [];
+    pendingOpenFbxPaths.delete(senderId);
+    pendingPaths.forEach(filePath => event.sender.send('open-fbx-file', filePath));
+});
+
+ipcMain.handle('open-fbx-in-new-window', async (event, filePath) => {
+    if (!isTrustedSender(event)) return false;
+    const info = getFbxFileInfo(filePath);
+    if (!info) return false;
+    createWindow({ initialFbxPath: info.fullPath });
+    return true;
+});
 
 // 获取真实 EXE 所在目录 (保持原样)
 function getRealExeDir() {
@@ -356,7 +505,9 @@ function createLocalFileUrl(filePath) {
 }
 
 function isTrustedSender(event) {
-    return !!mainWindow && event && event.sender === mainWindow.webContents;
+    if (!event || !event.sender) return false;
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    return !!senderWindow && appWindows.has(senderWindow) && !senderWindow.isDestroyed();
 }
 
 function isPathInsideDirectory(candidatePath, parentDir) {
@@ -650,8 +801,10 @@ function fetchLatestRelease() {
 }
 
 function sendAutoUpdateStatus(status) {
-    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return;
-    mainWindow.webContents.send('update-status', status);
+    for (const browserWindow of appWindows) {
+        if (browserWindow.isDestroyed() || browserWindow.webContents.isDestroyed()) continue;
+        browserWindow.webContents.send('update-status', status);
+    }
 }
 
 ipcMain.handle('load-favorites', async () => {
@@ -787,19 +940,24 @@ async function getAllFbxFilesAsync(dir, rootDir, scanState, event) {
     return results;
 }
 
-ipcMain.handle('cancel-scan', async () => {
-    if (!activeScan) return false;
-    activeScan.canceled = true;
+ipcMain.handle('cancel-scan', async event => {
+    if (!isTrustedSender(event)) return false;
+    const scanState = activeScans.get(event.sender.id);
+    if (!scanState) return false;
+    scanState.canceled = true;
     return true;
 });
 
 ipcMain.handle('scan-folder', async (event, customPath, requestId) => {
     let scanState = null;
+    const senderId = event.sender.id;
     try {
+        if (!isTrustedSender(event)) return { path: "", files: [], error: 'untrusted sender' };
         // 🔴 修复：如果是首次启动(没有路径)，直接返回空，防止 fs.readdirSync 报错炸掉程序
         if (!customPath) return { path: "", files: [] };
 
-        if (activeScan) activeScan.canceled = true;
+        const previousScan = activeScans.get(senderId);
+        if (previousScan) previousScan.canceled = true;
         scanState = {
             requestId,
             canceled: false,
@@ -807,7 +965,7 @@ ipcMain.handle('scan-folder', async (event, customPath, requestId) => {
             foundCount: 0,
             lastProgressAt: 0
         };
-        activeScan = scanState;
+        activeScans.set(senderId, scanState);
 
         const files = await getAllFbxFilesAsync(customPath, customPath, scanState, event);
         return { path: customPath, files, canceled: scanState.canceled, requestId };
@@ -815,19 +973,21 @@ ipcMain.handle('scan-folder', async (event, customPath, requestId) => {
         console.error("Scan error:", error); // 最好打印一下错误
         return { path: "", files: [], error: error.message }; 
     } finally {
-        if (activeScan === scanState) activeScan = null;
+        if (activeScans.get(senderId) === scanState) activeScans.delete(senderId);
     }
 });
 
-ipcMain.handle('get-file-info', async (event, filePath) => {
+function getFbxFileInfo(filePath) {
     try {
         if (!filePath || path.extname(filePath).toLowerCase() !== '.fbx') return null;
-        const stat = fs.statSync(filePath);
+        const resolvedPath = path.resolve(filePath);
+        const stat = fs.statSync(resolvedPath);
         if (!stat.isFile()) return null;
 
         return {
-            name: path.basename(filePath),
-            fullPath: filePath,
+            name: path.basename(resolvedPath),
+            fullPath: resolvedPath,
+            directory: path.dirname(resolvedPath),
             mtime: stat.mtimeMs,
             type: 'fbx'
         };
@@ -835,6 +995,11 @@ ipcMain.handle('get-file-info', async (event, filePath) => {
         console.error("File info error:", error);
         return null;
     }
+}
+
+ipcMain.handle('get-file-info', async (event, filePath) => {
+    if (!isTrustedSender(event)) return null;
+    return getFbxFileInfo(filePath);
 });
 
 ipcMain.handle('create-local-file-url', async (event, filePath) => {
@@ -974,8 +1139,10 @@ ipcMain.handle('open-external-url', async (event, url) => {
     }
 });
 
-ipcMain.handle('open-folder-dialog', async () => {
-    const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+ipcMain.handle('open-folder-dialog', async event => {
+    if (!isTrustedSender(event)) return null;
+    const parentWindow = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showOpenDialog(parentWindow, { properties: ['openDirectory'] });
     return result.canceled ? null : result.filePaths[0];
 });
 

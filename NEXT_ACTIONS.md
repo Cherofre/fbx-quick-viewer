@@ -1,14 +1,15 @@
 ## Now
 
-- [x] Complete and verify the original v1.0.5 feature set, including the real 3ds Max workflow and unsigned Windows packaging.
-- [x] Commit, merge, tag, publish, and verify the original v1.0.5 release artifacts and documentation.
-- [x] Add installer-only background auto-download progress and preserve the registered install directory plus existing data.
-- [x] Complete final packaging, replace all v1.0.5 GitHub auto-update assets, and verify remote digests.
-- [ ] Use the automatic updater when preparing the next version to validate a real 1.0.5-to-new-version background download and restart installation.
+- [x] Create `release/v1.0.6` and update the package, lockfile, README, changelog, release notes, checklist, decisions, and project status.
+- [x] Pass all automated tests, the multi-window Electron smoke, dependency audit, packaging, asar inspection, update metadata validation, and artifact digest checks.
+- [ ] Install the final 1.0.6 NSIS package and verify Explorer opens in both current-window and new-window modes.
+- [ ] Verify the final window-restore black-frame mitigation and confirm existing data plus the previous install directory are preserved.
+- [ ] Commit the release candidate, merge it to `master`, create tag `1.0.6`, push, and publish the four release assets.
+- [ ] From an installed 1.0.5, validate background download, progress UI, restart installation, preserved data, and successful launch into 1.0.6.
 
 ## Handoff Notes
 
-- Start here: For the next release, build a version newer than 1.0.5 and exercise the complete installed-app download and restart path against the published GitHub assets.
-- Do not redo: Auto-update implementation, unit tests, packaged updater configuration, non-modal UI review, install-location preservation, v1.0.5 asset replacement, and remote digest checks are complete.
-- Verify next: Confirm an installed v1.0.5 downloads the next version in the background, preserves its registered path and data, then restarts into the new version.
-- Do not claim: The current Windows binaries are code-signed; they remain intentionally unsigned for this release.
+- Start here: Install `dist/fbx-quick-viewer.Setup.1.0.6.exe`, then test Explorer current-window/new-window opens and the restored-window visual transition.
+- Do not redo: Version bump, dependency security remediation, automated tests, Electron multi-window smoke, final packaging, asar inspection, SHA-512 validation, and SHA-256 calculation are complete.
+- Verify next: After local manual checks, commit `release/v1.0.6`; after publishing, exercise the real installed 1.0.5 automatic-update path.
+- Do not claim that the final installer behavior, black-frame mitigation, or 1.0.5-to-1.0.6 update has been manually verified; those checks are still pending. The Windows binaries also remain unsigned.

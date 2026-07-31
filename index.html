@@ -269,7 +269,7 @@
 
         /* 补全历史记录下拉菜单样式 */
         #history-dropdown { 
-            position: absolute; top: 45px; right: 10px; width: 240px; 
+            position: absolute; top: calc(100% - 1px); right: 15px; width: 240px;
             background: #252526; border: 1px solid #454545; z-index: 1000; 
             display: none; max-height: 300px; overflow-y: auto; 
             box-shadow: 0 4px 12px rgba(0,0,0,0.5); 
@@ -324,7 +324,7 @@
         #sidebar-resizer:hover, #sidebar.resizing #sidebar-resizer { background: #007acc; }
         #sidebar.resizing { transition: none !important; border-right: 1px solid #007acc; }
 
-        #sidebar-header { padding: 15px; background: #2d2d2d; font-weight: bold; font-size: 14px; border-bottom: 1px solid #3e3e42; white-space: nowrap; }
+        #sidebar-header { position: relative; z-index: 120; overflow: visible; padding: 15px; background: #2d2d2d; font-weight: bold; font-size: 14px; border-bottom: 1px solid #3e3e42; white-space: nowrap; }
         .header-top-row { display: flex; justify-content: space-between; align-items: center; }
         #refresh-dir-btn { background: transparent; border: none; color: #888; cursor: pointer; font-size: 16px; padding: 0 4px; line-height: 1; transition: color 0.2s; outline: none; }
         #refresh-dir-btn:hover { color: #fff; transform: rotate(180deg); transition: all 0.4s; }
@@ -337,9 +337,22 @@
         .sort-btn.active { background-color: #0e639c; border-color: #007acc; color: white; }
 
         /* --- 按钮区域样式 --- */
-        #web-upload-section { padding: 10px 15px; border-bottom: 1px solid #3e3e42; background: #2d2d2d; display: none; }
-        #web-upload-btn { width: 100%; padding: 8px; background: #28a745; color: white; border: none; cursor: pointer; font-size: 12px; border-radius: 2px; font-weight: bold; }
+        #web-upload-section { position: relative; z-index: 110; overflow: visible; padding: 10px 15px; border-bottom: 1px solid #3e3e42; background: #2d2d2d; display: none; }
+        .folder-open-row { display: flex; gap: 5px; }
+        #web-upload-btn { flex: 1; min-width: 0; padding: 8px; background: #28a745; color: white; border: none; cursor: pointer; font-size: 12px; border-radius: 2px; font-weight: bold; }
         #web-upload-btn:hover { background: #218838; }
+        #history-btn {
+            width: 48px;
+            flex: 0 0 48px;
+            border: 1px solid #555;
+            border-radius: 2px;
+            background: #3c3c3c;
+            color: #ccc;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        #history-btn:hover,
+        #history-btn:focus-visible { background: #505050; color: #fff; border-color: #777; outline: 1px solid #007acc; }
 
         #file-list, #file-grid { flex: 1; overflow-y: auto; padding: 10px 0; outline: none; min-height: 0; }
         #file-grid { padding: 10px; display: none; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; align-content: start; }
@@ -587,6 +600,20 @@
         .grid-fav-icon.active:hover {
             background: rgba(0, 0, 0, 0.6);
         }
+        .grid-temporary-badge {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            z-index: 20;
+            padding: 2px 5px;
+            border: 1px solid rgba(214, 180, 93, 0.65);
+            border-radius: 2px;
+            background: rgba(24, 24, 24, 0.78);
+            color: #dbc37e;
+            font-size: 10px;
+            line-height: 1.2;
+            pointer-events: none;
+        }
         /* 筛选按钮激活状态 */
         .sort-btn.active-filter {
             background-color: #ffcc00 !important;
@@ -617,6 +644,40 @@
             outline: 1px solid #007acc;
             outline-offset: 1px;
         }
+        .header-actions { display: flex; align-items: center; gap: 3px; }
+        .header-more-wrap { position: relative; display: flex; }
+        #header-more-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 5px);
+            right: 0;
+            width: 150px;
+            padding: 4px 0;
+            border: 1px solid #4a4a4a;
+            background: #252526;
+            box-shadow: 0 5px 14px rgba(0, 0, 0, 0.45);
+            z-index: 1100;
+        }
+        #header-more-menu.show { display: flex; flex-direction: column; }
+        .header-actions #header-more-menu button {
+            display: flex;
+            width: 100%;
+            height: 30px;
+            padding: 0 10px;
+            justify-content: flex-start;
+            gap: 8px;
+            border-radius: 0;
+            color: #ccc;
+            font-size: 12px;
+            font-weight: normal;
+            white-space: nowrap;
+        }
+        .header-actions #header-more-menu button:hover,
+        .header-actions #header-more-menu button:focus-visible {
+            outline: none;
+            background: #3c3c3c !important;
+        }
+        .header-menu-icon { width: 16px; text-align: center; color: #999; }
         .file-item {
             gap: 5px;
             position: relative;
@@ -941,7 +1002,8 @@
             </section>
             <section class="help-section">
                 <h3>贴图预览</h3>
-                <div class="help-row"><strong>调整数值</strong><span>拖动带 ↔ 的 U / V 标签；按 <span class="key">Shift</span> 精调，按 <span class="key">Ctrl</span> 加速，双击标签或点击 ↶ 重置。</span></div>
+                <div class="help-row"><strong>调整数值</strong><span>拖动带 ↔ 的参数标签；按 <span class="key">Shift</span> 精调，按 <span class="key">Ctrl</span> 加速，双击标签或点击 ↶ 重置。</span></div>
+                <div class="help-row"><strong>贴图旋转</strong><span>角度是固定基础角度；速度单位为度/秒，在基础角度上持续旋转，正负值控制相反方向。</span></div>
                 <div class="help-row"><strong>撤销 / 重做</strong><span><span class="key">Ctrl+Z</span> 撤销，<span class="key">Ctrl+Y</span> 或 <span class="key">Ctrl+Shift+Z</span> 重做。</span></div>
             </section>
         </div>
@@ -1005,6 +1067,18 @@
                     <label for="setup-view-list">列表</label>
                     <input id="setup-view-grid" type="radio" name="setup-view-mode" value="grid">
                     <label for="setup-view-grid">缩略图</label>
+                </div>
+            </div>
+            <div class="setup-row">
+                <div class="setup-label">外部打开</div>
+                <div class="setup-control">
+                    <div class="setup-segment">
+                        <input id="setup-open-current" type="radio" name="setup-external-open-mode" value="current" checked>
+                        <label for="setup-open-current">当前窗口</label>
+                        <input id="setup-open-new-window" type="radio" name="setup-external-open-mode" value="new-window">
+                        <label for="setup-open-new-window">新窗口</label>
+                    </div>
+                    <div class="setup-mode-help">当前窗口会保留正在浏览的目录，并将外部模型作为临时预览。</div>
                 </div>
             </div>
             <div class="setup-row">
@@ -1076,24 +1150,31 @@
             <div id="sidebar-header">
                 <div class="header-top-row">
                     <span>当前目录: <span id="dir-name">未选择</span></span>
-                    <div class="header-actions" style="display:flex; gap:5px;">
-                        <button id="settings-btn" class="icon-btn-ghost" onclick="showPreferencesDialog(true)" title="偏好设置" aria-label="偏好设置">⚙</button>
-                        <button id="help-btn" class="icon-btn-ghost" onclick="showHelp()" title="操作帮助 (F1)" aria-label="操作帮助">?</button>
-                        <button id="check-update-btn" class="icon-btn-ghost" onclick="checkForUpdates(true)" title="检查更新" style="background:transparent;border:none;color:#888;cursor:pointer;">⬆</button>
-                        <button id="history-btn" class="icon-btn-ghost" onclick="toggleHistory()" title="最近历史记录" style="background:transparent;border:none;color:#888;cursor:pointer;">🕒</button>
-                        <button id="refresh-dir-btn" onclick="refreshCurrentDirectory()" title="重新索引当前目录" style="background:transparent;border:none;color:#888;cursor:pointer;">↻</button>
+                    <div class="header-actions">
+                        <div class="header-more-wrap">
+                            <button id="header-more-btn" class="icon-btn-ghost" onclick="toggleHeaderMoreMenu(event)" title="更多" aria-label="更多操作" aria-haspopup="menu" aria-expanded="false">⋯</button>
+                            <div id="header-more-menu" role="menu">
+                                <button id="settings-btn" type="button" role="menuitem" onclick="closeHeaderMoreMenu(); showPreferencesDialog(true)"><span class="header-menu-icon">⚙</span><span>偏好设置</span></button>
+                                <button id="help-btn" type="button" role="menuitem" onclick="closeHeaderMoreMenu(); showHelp()"><span class="header-menu-icon">?</span><span>操作帮助 (F1)</span></button>
+                                <button id="check-update-btn" type="button" role="menuitem" onclick="closeHeaderMoreMenu(); checkForUpdates(true)"><span id="check-update-icon" class="header-menu-icon">↻</span><span id="check-update-label">检查更新</span></button>
+                            </div>
+                        </div>
+                        <button id="refresh-dir-btn" onclick="refreshCurrentDirectory()" title="重新索引当前目录" aria-label="重新索引当前目录">↻</button>
                     </div>
                 </div>
                 <div style="font-size:11px; color:#888; margin-top:4px;">
                     发现 <span id="file-count">0</span> 个 FBX 文件
                     <span id="progress-info"></span>
                 </div>
-                <div id="history-dropdown"></div>
             </div>
             
             <div id="web-upload-section">
                 <input type="file" id="folder-input" webkitdirectory directory multiple style="display:none">
-                <button id="web-upload-btn" onclick="handleOpenFolder()">打开文件夹</button>
+                <div class="folder-open-row">
+                    <button id="web-upload-btn" onclick="handleOpenFolder()">打开文件夹</button>
+                    <button id="history-btn" type="button" onclick="toggleHistory()" title="最近目录">最近</button>
+                </div>
+                <div id="history-dropdown"></div>
             </div>
 
             <div id="sort-bar">
@@ -1250,9 +1331,26 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- 旋转角度与自动旋转速度 -->
+                    <div class="max-row" style="margin-top: 8px; border-top: 1px dashed #444; padding-top: 5px;">
+                        <span>旋转</span>
+                        <div class="max-input-group">
+                            <div class="max-field" title="贴图角度（度）；拖动调整；Shift 精调；Ctrl 加速；双击归零">
+                                <span id="lbl-rotationAngle" class="scrub-label">角</span>
+                                <input type="number" id="rotationAngle" value="0" step="1" oninput="updateUVMax()" aria-label="贴图角度（度）">
+                                <button class="uv-reset-btn" type="button" data-reset-input="rotationAngle" onclick="resetUVControl('rotationAngle')" title="重置贴图角度为 0 度" aria-label="重置贴图角度为 0 度">↶</button>
+                            </div>
+                            <div class="max-field" title="旋转速度（度/秒）；正负值控制方向；0 为停止；双击归零">
+                                <span id="lbl-rotationSpeed" class="scrub-label">速</span>
+                                <input type="number" id="rotationSpeed" value="0" step="1" oninput="updateUVMax()" aria-label="贴图旋转速度（度每秒）">
+                                <button class="uv-reset-btn" type="button" data-reset-input="rotationSpeed" onclick="resetUVControl('rotationSpeed')" title="停止贴图旋转" aria-label="将贴图旋转速度重置为 0">↶</button>
+                            </div>
+                        </div>
+                    </div>
                     
                     <!-- 流动动画 (新版：U/V 分离，数值放大100倍) -->
-                    <div class="max-row" style="margin-top: 8px; border-top: 1px dashed #444; padding-top: 5px;">
+                    <div class="max-row" style="margin-top: 8px;">
                         <span>流动</span>
                         <div class="max-input-group">
                             <div class="max-field" title="拖动调整；Shift 精调；Ctrl 加速；双击 U 归零">
@@ -1770,7 +1868,8 @@
         };
         const PREFERENCE_KEYS = {
             firstRunComplete: 'fbx_first_run_setup_v1',
-            meshActionsEnabled: 'fbx_mesh_actions_enabled'
+            meshActionsEnabled: 'fbx_mesh_actions_enabled',
+            externalOpenMode: 'fbx_external_open_mode'
         };
         let activeCoachmark = null;
         const coachmarkQueue = [];
@@ -1936,6 +2035,10 @@
             return localStorage.getItem(PREFERENCE_KEYS.meshActionsEnabled) !== '0';
         }
 
+        function getExternalOpenMode() {
+            return localStorage.getItem(PREFERENCE_KEYS.externalOpenMode) === 'new-window' ? 'new-window' : 'current';
+        }
+
         function applyMeshActionPreference() {
             const enabled = isElectron && areMeshActionsEnabled();
             const contextAction = document.getElementById('ctx-copy-mesh-item');
@@ -1962,6 +2065,8 @@
             document.querySelector(`input[name="setup-nav-mode"][value="${savedNavMode}"]`).checked = true;
             const savedViewMode = localStorage.getItem('fbx_view_mode') || (isGridView ? 'grid' : 'list');
             document.querySelector(`input[name="setup-view-mode"][value="${savedViewMode}"]`).checked = true;
+            const externalOpenMode = getExternalOpenMode();
+            document.querySelector(`input[name="setup-external-open-mode"][value="${externalOpenMode}"]`).checked = true;
             document.getElementById('setup-open-help').checked = preferenceDialogRequired;
 
             if (!dialog.open) dialog.showModal();
@@ -1969,10 +2074,11 @@
             return new Promise(resolve => { preferenceDialogResolver = resolve; });
         }
 
-        function applySavedPreferences(meshEnabled, navMode, viewMode) {
+        function applySavedPreferences(meshEnabled, navMode, viewMode, externalOpenMode) {
             localStorage.setItem(PREFERENCE_KEYS.meshActionsEnabled, meshEnabled ? '1' : '0');
             localStorage.setItem('fbx_nav_mode', navMode);
             localStorage.setItem('fbx_view_mode', viewMode);
+            localStorage.setItem(PREFERENCE_KEYS.externalOpenMode, externalOpenMode === 'new-window' ? 'new-window' : 'current');
             applyMeshActionPreference();
 
             const navSelect = document.getElementById('nav-mode');
@@ -1991,9 +2097,12 @@
             const viewMode = useDefaults
                 ? 'list'
                 : document.querySelector('input[name="setup-view-mode"]:checked').value;
+            const externalOpenMode = useDefaults
+                ? 'current'
+                : document.querySelector('input[name="setup-external-open-mode"]:checked').value;
             const openHelpAfter = useDefaults ? true : document.getElementById('setup-open-help').checked;
 
-            applySavedPreferences(meshEnabled, navMode, viewMode);
+            applySavedPreferences(meshEnabled, navMode, viewMode, externalOpenMode);
             localStorage.setItem(PREFERENCE_KEYS.firstRunComplete, '1');
             document.getElementById('first-run-dialog').close();
 
@@ -2100,8 +2209,8 @@
         function showUVControlsHint() {
             showCoachmarkOnce(
                 ONBOARDING_HINT_KEYS.uvControls,
-                'U / V 数值支持拖动',
-                '拖动带 ↔ 的 U / V 标签调整，Shift 精调；双击标签或点击 ↶ 重置。'
+                '贴图参数支持拖动',
+                '拖动带 ↔ 的参数标签调整，Shift 精调；角度是固定值，速度会在其基础上持续旋转。'
             );
         }
 
@@ -2352,6 +2461,11 @@
                     img.dataset.thumbnailKey = thumbnailKey;
                     img.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDUwIDUwIj48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZHk9Ii4zZW0iIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM1NTUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjgiPkZCWDwvdGV4dD48L3N2Zz4=';
                     const nm = document.createElement('div'); nm.className='thumb-name'; nm.textContent = item.name; nm.title=item.name;
+                    const temporaryBadge = item.isTemporary ? document.createElement('div') : null;
+                    if (temporaryBadge) {
+                        temporaryBadge.className = 'grid-temporary-badge';
+                        temporaryBadge.textContent = '临时';
+                    }
                     const dragAffordance = document.createElement('div');
                     dragAffordance.className = 'item-drag-affordance';
                     dragAffordance.textContent = '拖到 Max';
@@ -2371,6 +2485,7 @@
                         if (gridBadge) gi.appendChild(gridBadge);
                     }
                     
+                    if (temporaryBadge) gi.appendChild(temporaryBadge);
                     gi.append(favBtn, img, nm, dragAffordance, actionBtn); // 把星星和显式操作入口也加进去
                     
                     gi.onclick = () => { 
@@ -2941,6 +3056,17 @@
             }
         }
 
+        function normalizeFileSystemPath(filePath) {
+            return String(filePath || '').replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+        }
+
+        function clearFileFiltersForSelection() {
+            const searchInput = document.getElementById('search-input');
+            if (searchInput) searchInput.value = '';
+            isFavFilterOnly = false;
+            document.getElementById('fav-filter-btn')?.classList.remove('active-filter');
+        }
+
         async function scanFiles(customPath) {
             if (!isElectron) return;
             const scanRequestId = ++activeScanRequestId;
@@ -2975,11 +3101,13 @@
                 if (progressEl && !isThumbProcessing) {
                     progressEl.innerText = result.canceled ? `扫描已取消，已加载 ${files.length} 个 FBX` : "";
                 }
+                return true;
             } catch (error) {
                 if (scanRequestId !== activeScanRequestId) return;
                 console.error("扫描文件夹失败:", error);
                 const progressEl = document.getElementById('progress-info');
                 if (progressEl) progressEl.innerText = "扫描失败";
+                return false;
             } finally {
                 if (scanRequestId === activeScanRequestId) {
                     isScanningFolder = false;
@@ -3009,6 +3137,8 @@
 
         let scene, camera, renderer, controls, loader;
         let animationFrameRequestId = 0;
+        let lastAnimationTimestamp = null;
+        let uvRotationPhaseDegrees = 0;
         let gridHelper;
         let ddsLoader, tgaLoader, textureLoader; 
         let currentModel = null;
@@ -3061,14 +3191,35 @@
             // 如果是“原始坐标”模式，就保持 (0,0,0) 不动，即 FBX 里的原始位置
         }
 
+        function closeHeaderMoreMenu() {
+            const menu = document.getElementById('header-more-menu');
+            const button = document.getElementById('header-more-btn');
+            if (menu) menu.classList.remove('show');
+            if (button) button.setAttribute('aria-expanded', 'false');
+        }
+
+        function toggleHeaderMoreMenu(event) {
+            event?.stopPropagation();
+            const menu = document.getElementById('header-more-menu');
+            const button = document.getElementById('header-more-btn');
+            if (!menu || !button) return;
+            const willOpen = !menu.classList.contains('show');
+            document.getElementById('history-dropdown')?.classList.remove('show');
+            menu.classList.toggle('show', willOpen);
+            button.setAttribute('aria-expanded', String(willOpen));
+        }
+
         function toggleHistory() { 
+            closeHeaderMoreMenu();
             document.getElementById('history-dropdown').classList.toggle('show'); 
             if(document.getElementById('history-dropdown').classList.contains('show')) renderHistoryList(); 
         }
         
         document.addEventListener('click', (e)=>{ 
             if(!e.target.closest('#history-btn') && !e.target.closest('#history-dropdown')) 
-                document.getElementById('history-dropdown').classList.remove('show'); 
+                document.getElementById('history-dropdown').classList.remove('show');
+            if(!e.target.closest('#header-more-btn') && !e.target.closest('#header-more-menu'))
+                closeHeaderMoreMenu();
         });
 
         function addToHistory(p) { 
@@ -3172,6 +3323,16 @@
                 const currentUpdateState = await ipcRenderer.invoke('get-update-state');
                 handleAutoUpdateStatus(currentUpdateState);
             }
+            if (isElectron && window.electronAPI && typeof window.electronAPI.onOpenFbxFile === 'function') {
+                window.electronAPI.onOpenFbxFile(filePath => {
+                    handleAssociatedFbxPath(filePath, true).then(loaded => {
+                        if (!loaded) showToast('无法打开指定的 FBX 文件', 'error');
+                    }).catch(error => {
+                        console.error('打开外部 FBX 文件失败:', error);
+                        showToast('无法打开指定的 FBX 文件', 'error');
+                    });
+                });
+            }
             // 2. 🟢 关键：等待收藏数据加载完毕！
             // 只有等它读完 JSON，favoriteSet 里才有数据，后面的 renderFileList 才能正确显示星星
             await loadFavoritesData();
@@ -3179,12 +3340,21 @@
             await showFirstRunSetupIfNeeded();
             // 3. 最后再加载文件列表
             if (isElectron && ipcRenderer) {
-                const history = JSON.parse(localStorage.getItem('fbx_hist') || '[]');
-                if (history.length > 0) {
-                    // 加载上次打开的文件夹
-                    scanFiles(history[0]);
+                try {
+                    const initialFbxPath = await ipcRenderer.invoke('consume-open-fbx-path');
+                    if (initialFbxPath) {
+                        await handleAssociatedFbxPath(initialFbxPath, false);
+                    } else {
+                        const history = JSON.parse(localStorage.getItem('fbx_hist') || '[]');
+                        if (history.length > 0) {
+                            // 加载上次打开的文件夹
+                            await scanFiles(history[0]);
+                        }
+                    }
+                } finally {
+                    if (typeof window.electronAPI.notifyOpenFbxReady === 'function') window.electronAPI.notifyOpenFbxReady();
+                    scheduleSilentUpdateCheck();
                 }
-                scheduleSilentUpdateCheck();
             }
         }
         async function checkForUpdates(manual) {
@@ -3194,8 +3364,13 @@
             }
 
             const btn = document.getElementById('check-update-btn');
-            const originalText = btn ? btn.innerText : '';
-            if (manual && btn) btn.innerText = '...';
+            const label = document.getElementById('check-update-label');
+            const originalLabel = label ? label.textContent : '检查更新';
+            if (manual && btn) {
+                btn.disabled = true;
+                btn.setAttribute('aria-busy', 'true');
+                if (label) label.textContent = '检查中...';
+            }
 
             try {
                 const result = await ipcRenderer.invoke('check-for-updates');
@@ -3219,7 +3394,11 @@
                 else console.error("静默检查更新失败:", error);
                 return { ok: false, error: message };
             } finally {
-                if (manual && btn) btn.innerText = originalText;
+                if (manual && btn) {
+                    btn.disabled = false;
+                    btn.removeAttribute('aria-busy');
+                    if (label) label.textContent = originalLabel;
+                }
             }
         }
 
@@ -3415,10 +3594,22 @@
         function setupDragAndDrop() {
             const container = document.getElementById('canvas-container');
             const hint = document.getElementById('drag-hint');
-            container.addEventListener('dragover', (e) => { e.preventDefault(); container.classList.add('drag-over'); if(isUVMode) hint.style.display = 'block'; });
-            container.addEventListener('dragleave', (e) => { e.preventDefault(); container.classList.remove('drag-over'); hint.style.display = 'none'; });
+            container.addEventListener('dragover', (e) => {
+                if (!isFileDragEvent(e)) return;
+                e.preventDefault();
+                container.classList.add('drag-over');
+                if (isUVMode) hint.style.display = 'block';
+            });
+            container.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                container.classList.remove('drag-over');
+                hint.style.display = 'none';
+            });
             container.addEventListener('drop', (e) => {
-                e.preventDefault(); container.classList.remove('drag-over'); hint.style.display = 'none';
+                if (!isFileDragEvent(e)) return;
+                e.preventDefault();
+                container.classList.remove('drag-over');
+                hint.style.display = 'none';
                 if (e.dataTransfer.files.length > 0 && isFbxFile(e.dataTransfer.files[0])) {
                     loadDroppedFbx(e.dataTransfer.files[0]);
                     return;
@@ -3426,6 +3617,10 @@
                 if (!isUVMode) { alert("请先点击 [启用贴图预览] 按钮，再拖拽贴图！"); return; }
                 if (e.dataTransfer.files.length > 0) loadDroppedTexture(e.dataTransfer.files[0]);
             });
+        }
+
+        function isFileDragEvent(event) {
+            return Array.from(event?.dataTransfer?.types || []).includes('Files');
         }
 
         function isFbxFile(file) {
@@ -3442,11 +3637,59 @@
                 return;
             }
 
-            const info = await ipcRenderer.invoke('get-file-info', filePath);
-            if (!info) {
-                alert("无法读取拖入的 FBX 文件");
-                return;
+            const loaded = await loadTemporaryFbxPath(filePath);
+            if (!loaded) alert("无法读取拖入的 FBX 文件");
+        }
+
+        async function handleAssociatedFbxPath(filePath, allowNewWindow) {
+            if (!isElectron || !ipcRenderer || !filePath) return false;
+            if (allowNewWindow && getExternalOpenMode() === 'new-window') {
+                return ipcRenderer.invoke('open-fbx-in-new-window', filePath);
             }
+            return openFbxInCurrentWindow(filePath);
+        }
+
+        async function openFbxInCurrentWindow(filePath) {
+            if (!isElectron || !ipcRenderer || !filePath) return false;
+            const info = await ipcRenderer.invoke('get-file-info', filePath);
+            if (!info) return false;
+            cancelActiveDirectoryScanForExternalOpen();
+
+            const targetPath = normalizeFileSystemPath(info.fullPath);
+            const existingItem = allFilesData.find(item => normalizeFileSystemPath(item.fullPath) === targetPath);
+            if (existingItem) {
+                temporaryDroppedFbxItem = null;
+                clearFileFiltersForSelection();
+                renderFileList();
+                const targetIndex = currentDisplayList.findIndex(item => normalizeFileSystemPath(item.fullPath) === targetPath);
+                if (targetIndex >= 0) {
+                    selectFileByIndex(targetIndex);
+                    return true;
+                }
+            }
+
+            return loadTemporaryFbxInfo(info);
+        }
+
+        async function loadTemporaryFbxPath(filePath) {
+            if (!isElectron || !ipcRenderer || !filePath) return false;
+            const info = await ipcRenderer.invoke('get-file-info', filePath);
+            if (!info) return false;
+            return loadTemporaryFbxInfo(info);
+        }
+
+        function cancelActiveDirectoryScanForExternalOpen() {
+            if (isScanningFolder) {
+                activeScanRequestId++;
+                isScanningFolder = false;
+                ipcRenderer.invoke('cancel-scan').catch(error => console.error('取消目录扫描失败:', error));
+                const progressEl = document.getElementById('progress-info');
+                if (progressEl) progressEl.innerText = '';
+            }
+        }
+
+        function loadTemporaryFbxInfo(info) {
+            cancelActiveDirectoryScanForExternalOpen();
 
             temporaryDroppedFbxItem = {
                 name: info.name,
@@ -3457,7 +3700,8 @@
             };
             hydrateItemUVMetadata(temporaryDroppedFbxItem);
             renderFileList();
-            selectFile(temporaryDroppedFbxItem, 0, document.querySelector('.file-item'));
+            selectFileByIndex(0);
+            return true;
         }
 
         function loadDroppedTexture(file) {
@@ -3467,7 +3711,8 @@
             const onLoad = (texture) => {
                 texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
                 matUV.map = texture; matUV.needsUpdate = true; loading.style.display = 'none';
-                resetUVParams();
+                updateUVMax();
+                updateUVWrap();
             };
             const onError = (err) => { console.error(err); loading.style.display = 'none'; alert("加载贴图失败"); };
             loading.style.display = 'flex'; loading.innerText = "正在加载贴图...";
@@ -4132,16 +4377,22 @@ if (fileListEl) {
             renderFrame();
         }
 
-        function animate() {
+        function animate(timestamp) {
             animationFrameRequestId = requestAnimationFrame(animate);
+            const frameTimestamp = Number.isFinite(timestamp) ? timestamp : performance.now();
+            const deltaSeconds = lastAnimationTimestamp === null
+                ? 0
+                : Math.min(Math.max((frameTimestamp - lastAnimationTimestamp) / 1000, 0), 0.1);
+            lastAnimationTimestamp = frameTimestamp;
             
             // 1. 🟢 修复：驱动补间动画 (让 T/F/L/R/P 和 ViewCube 点击生效)
             if (window.TWEEN) TWEEN.update();
             // 2. 🟢 修复：更新 ViewCube (让左上角小方块跟随旋转)
             if (viewCube) viewCube.update();
             controls.update();
-            // --- UV 流动逻辑 ---
+            // --- UV 动画逻辑 ---
             if (isUVMode && matUV && matUV.map) {
+                advanceUVRotation(deltaSeconds);
                 const flowU = document.getElementById('flowU_val');
                 const flowV = document.getElementById('flowV_val');
                 if (flowU && flowV) {
@@ -4427,6 +4678,8 @@ const UV_CONTROL_DEFAULTS = {
     tileV: 1,
     offU: 0,
     offV: 0,
+    rotationAngle: 0,
+    rotationSpeed: 0,
     flowU_val: 0,
     flowV_val: 0
 };
@@ -4446,6 +4699,8 @@ function getUVControlState() {
         tileV: readUVNumber('tileV', 1),
         offU: readUVNumber('offU', 0),
         offV: readUVNumber('offV', 0),
+        rotationAngle: readUVNumber('rotationAngle', 0),
+        rotationSpeed: readUVNumber('rotationSpeed', 0),
         flowU: readUVNumber('flowU_val', 0),
         flowV: readUVNumber('flowV_val', 0),
         wrapU: !!document.getElementById('wrapU')?.checked,
@@ -4492,6 +4747,8 @@ function applyUVControlState(state) {
     setUVInputValue('tileV', state.tileV);
     setUVInputValue('offU', state.offU);
     setUVInputValue('offV', state.offV);
+    setUVInputValue('rotationAngle', state.rotationAngle);
+    setUVInputValue('rotationSpeed', state.rotationSpeed);
     setUVInputValue('flowU_val', state.flowU);
     setUVInputValue('flowV_val', state.flowV);
     if (document.getElementById('wrapU')) document.getElementById('wrapU').checked = state.wrapU;
@@ -4554,10 +4811,33 @@ function updateUVMax() {
     const tileV = readUVNumber('tileV', 1);
     const offU = readUVNumber('offU', 0);
     const offV = readUVNumber('offV', 0);
+    const rotationAngle = readUVNumber('rotationAngle', 0);
     matUV.map.repeat.set(tileU, tileV);
     matUV.map.offset.set(offU, offV);
+    applyUVTextureRotation(rotationAngle + uvRotationPhaseDegrees);
     matUV.needsUpdate = true;
     renderFrame();
+}
+
+function applyUVTextureRotation(angleDegrees) {
+    if (!matUV || !matUV.map) return;
+    matUV.map.center.set(0.5, 0.5);
+    matUV.map.rotation = angleDegrees * Math.PI / 180;
+    matUV.map.needsUpdate = true;
+}
+
+function advanceUVRotation(deltaSeconds) {
+    if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0 || !matUV || !matUV.map) return;
+    const rotationSpeed = readUVNumber('rotationSpeed', 0);
+    if (rotationSpeed === 0) return;
+
+    uvRotationPhaseDegrees = (uvRotationPhaseDegrees + rotationSpeed * deltaSeconds) % 360;
+    const baseAngle = readUVNumber('rotationAngle', 0);
+    applyUVTextureRotation(baseAngle + uvRotationPhaseDegrees);
+}
+
+function resetUVRotationPhase() {
+    uvRotationPhaseDegrees = 0;
 }
 function updateUVWrap() {
     if (!matUV || !matUV.map) return;
@@ -4579,17 +4859,22 @@ function resetUVMax({ recordHistory = true } = {}) {
             // 2. 重置 偏移 (默认为 0)
             document.getElementById('offU').value = 0;
             document.getElementById('offV').value = 0;
+
+            // 3. 重置旋转角度和速度
+            if(document.getElementById('rotationAngle')) document.getElementById('rotationAngle').value = 0;
+            if(document.getElementById('rotationSpeed')) document.getElementById('rotationSpeed').value = 0;
+            resetUVRotationPhase();
             
-            // 3. 🟢 重置 流动 (核心修复：针对新的 ID)
+            // 4. 🟢 重置 流动 (核心修复：针对新的 ID)
             // 必须设为 0，否则重置后还会继续动
             if(document.getElementById('flowU_val')) document.getElementById('flowU_val').value = 0;
             if(document.getElementById('flowV_val')) document.getElementById('flowV_val').value = 0;
             
-            // 4. 重置 循环 (默认为勾选)
+            // 5. 重置 循环 (默认为勾选)
             if(document.getElementById('wrapU')) document.getElementById('wrapU').checked = true;
             if(document.getElementById('wrapV')) document.getElementById('wrapV').checked = true;
             
-            // 5. 立即刷新画面
+            // 6. 立即刷新画面
             updateUVMax();
             updateUVWrap();
             if (recordHistory) pushUVUndoState(previousState);
@@ -4602,6 +4887,8 @@ function resetUVMax({ recordHistory = true } = {}) {
                 { labelId: 'lbl-tileV', inputId: 'tileV', defaultValue: 1, dragStep: 0.01, keyStep: 0.01 },
                 { labelId: 'lbl-offU', inputId: 'offU', defaultValue: 0, dragStep: 0.002, keyStep: 0.01 },
                 { labelId: 'lbl-offV', inputId: 'offV', defaultValue: 0, dragStep: 0.002, keyStep: 0.01 },
+                { labelId: 'lbl-rotationAngle', inputId: 'rotationAngle', defaultValue: 0, dragStep: 0.25, keyStep: 1 },
+                { labelId: 'lbl-rotationSpeed', inputId: 'rotationSpeed', defaultValue: 0, dragStep: 0.25, keyStep: 1 },
                 { labelId: 'lbl-flowU', inputId: 'flowU_val', defaultValue: 0, dragStep: 0.01, keyStep: 0.01 },
                 { labelId: 'lbl-flowV', inputId: 'flowV_val', defaultValue: 0, dragStep: 0.01, keyStep: 0.01 }
             ];
@@ -4652,6 +4939,8 @@ function resetUVMax({ recordHistory = true } = {}) {
                     beginUVInputEdit(input);
                     requestAnimationFrame(() => input.select());
                 });
+                input.addEventListener('dragstart', (e) => e.preventDefault());
+                span.addEventListener('dragstart', (e) => e.preventDefault());
                 input.addEventListener('change', () => commitActiveUVInputEdit(input));
                 input.addEventListener('blur', () => commitActiveUVInputEdit(input));
                 input.addEventListener('keydown', (e) => {

@@ -22,6 +22,8 @@ const allowedInvokeChannels = new Set([
     'scan-folder',
     'cancel-scan',
     'get-file-info',
+    'consume-open-fbx-path',
+    'open-fbx-in-new-window',
     'create-local-file-url',
     'check-thumbnail',
     'save-thumbnail',
@@ -60,6 +62,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const listener = (_event, payload) => callback(payload || {});
         ipcRenderer.on('update-status', listener);
         return () => ipcRenderer.removeListener('update-status', listener);
+    },
+
+    onOpenFbxFile(callback) {
+        if (typeof callback !== 'function') return () => {};
+        const listener = (_event, filePath) => callback(typeof filePath === 'string' ? filePath : '');
+        ipcRenderer.on('open-fbx-file', listener);
+        return () => ipcRenderer.removeListener('open-fbx-file', listener);
+    },
+
+    notifyOpenFbxReady() {
+        ipcRenderer.send('renderer-open-file-ready');
     },
 
     getPathForFile(file) {

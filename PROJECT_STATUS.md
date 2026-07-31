@@ -1,17 +1,32 @@
 ## Current Snapshot
 
-- Last Updated: 2026-07-14
-- Branch: `master`
-- Worktree: Clean after the v1.0.5 automatic-update replacement and ledger commit.
+- Last Updated: 2026-07-31
+- Branch: `release/v1.0.6`
+- Worktree: Dirty release-candidate changes are ready for the v1.0.6 release-preparation commit; `dist/` remains ignored.
 - Superpowers Phase: Not active for this release.
 - Superpowers Plan: None; existing plans describe earlier releases and features.
-- Goal: Replace the undownloaded v1.0.5 installer with a build that supports non-blocking automatic downloads while preserving the old install directory and data.
-- Phase: v1.0.5 automatic-update replacement released.
-- Result: The installed build uses `electron-updater` to download future versions in the background with visible progress and a deferred restart action. Portable builds remain manual. NSIS keeps the registered 1.0.4 installation directory, preserves AppData, and protects an install-adjacent `FBX_Data` during replacement.
-- Dependencies: Electron 43.1.0, electron-builder 26.15.3, and electron-updater 6.8.9; `npm audit` reports zero vulnerabilities.
-- External verification: The user confirmed the packaged v1.0.5 drag-out behavior in a real 3ds Max workflow on 2026-07-14.
+- Goal: Prepare v1.0.6 with Windows FBX default-app registration, configurable current/new-window external opens, independent texture rotation controls, and the accumulated UI fixes.
+- Phase: Local v1.0.6 release candidate built; awaiting final installed-app verification and Git/GitHub release actions.
+- Result: The installer registers as a per-user FBX open candidate without changing `UserChoice`. Explorer opens default to a temporary item in the current window, with an optional isolated new-window mode. Texture angle and continuous rotation speed are independent, and replacement textures preserve preview parameters.
+- Dependencies: Electron 43.1.0, electron-builder 26.15.7, electron-updater 6.8.9, and a `brace-expansion` 5.0.9 security override; `npm audit` reports zero vulnerabilities.
+- External verification: The user accepted the current-window behavior after iterative testing. The final window-restore black-frame mitigation and the installed 1.0.5-to-1.0.6 automatic update still require final package verification.
 
 ## Verification Evidence
+
+- v1.0.6 `npm test`: all suites passed, including texture rotation, default-app behavior, multi-window isolation, legacy regressions, and Electron smoke.
+- Electron smoke requested and created a real second `BrowserWindow` inside the single application process.
+- `npm audit --audit-level=high`: zero known vulnerabilities after updating electron-builder to 26.15.7 and overriding vulnerable `brace-expansion` versions with 5.0.9.
+- `npm run dist`: produced the v1.0.6 NSIS installer, portable executable, `latest.yml`, and installer blockmap.
+- Packaged `app.asar`: version 1.0.6; `main.js`, `open-fbx.js`, `preload.js`, and `index.html` are present.
+- Packaged `app-update.yml`: GitHub provider points to `Cherofre/fbx-quick-viewer`.
+- `latest.yml` references `fbx-quick-viewer.Setup.1.0.6.exe`; its SHA-512 exactly matches the installer.
+- Installer SHA-256: `403A74D12040E75F13FBFD2A6438770C1C99FE2C5CD56193B66081BEFB2CA1C3`.
+- Portable SHA-256: `4CCAFDF1A1D67FA65C851020A5EA5530BEC749EBCEE878ED099C545D5869D350`.
+- `latest.yml` SHA-256: `B6ABC88594D657F1E03C826BF310201268C3AB27F2334065744BDA41C9A34486`.
+- Installer blockmap SHA-256: `55B2A6E48BED96F69816F41DA79F27C81B14040B2BB2D8F5AFF628C08542F652`.
+- `git diff --check` passed; `git status` contains no `dist/`, cache, log, or runtime-data files.
+
+### Published v1.0.5 baseline
 
 - `npm test`: passed on Electron 43.1.0.
 - `npm run pack`: passed with electron-builder 26.15.3.
@@ -45,6 +60,8 @@
 
 ## Risks
 
+- Final installed-package checks remain for current-window/new-window Explorer opens and the window-restore black-frame mitigation.
+- A real 1.0.5 background download and restart installation can only be validated after 1.0.6 is available through the GitHub latest-release feed.
 - 3ds Max controls whether dropping an FBX opens an import dialog.
 - Windows blocks drag-and-drop from a lower-integrity process into an elevated 3ds Max process.
 - Three.js r128 and the vendored loaders remain old and should be upgraded only with model-rendering regression coverage.

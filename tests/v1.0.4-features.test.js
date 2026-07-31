@@ -17,9 +17,20 @@ function assertNotContains(source, text, label) {
     assert(!source.includes(text), `${label} should not contain ${JSON.stringify(text)}`);
 }
 
-assert.strictEqual(packageJson.version, '1.0.5', 'package version should match the current release');
+assert.strictEqual(packageJson.version, '1.0.6', 'package version should match the current release');
 assert.strictEqual(packageJson.author, 'Cherofre', 'package author should not use template metadata');
-assert.strictEqual(packageJson.scripts.test, 'node tests/v1.0.5-auto-update.test.js && node tests/mesh-path-resolution.test.js && node tests/v1.0.5-uv-controls.test.js && node tests/v1.0.5-max-navigation.test.js && node tests/v1.0.5-discoverability.test.js && node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js && node tests/electron-smoke.test.js', 'npm test should run regression and smoke suites');
+[
+    'tests/v1.0.5-auto-update.test.js',
+    'tests/mesh-path-resolution.test.js',
+    'tests/v1.0.5-uv-controls.test.js',
+    'tests/v1.0.6-texture-rotation.test.js',
+    'tests/v1.0.6-default-app.test.js',
+    'tests/v1.0.5-max-navigation.test.js',
+    'tests/v1.0.5-discoverability.test.js',
+    'tests/drag-drop-behavior.test.js',
+    'tests/v1.0.4-features.test.js',
+    'tests/electron-smoke.test.js'
+].forEach(testFile => assertContains(packageJson.scripts.test, testFile, 'npm test'));
 assert(fs.existsSync(preloadJsPath), 'preload.js should exist for context-isolated renderer IPC');
 const preloadJs = fs.readFileSync(preloadJsPath, 'utf8');
 
@@ -121,7 +132,7 @@ assertContains(indexHtml, 'const selectedItem = options.item || currentDisplayLi
 assertContains(indexHtml, 'updateFileUVMetadata(selectedItem, uvChannels);', 'renderer');
 assertNotContains(indexHtml, 'if (!isFavFilterOnly && temporaryDroppedFbxItem', 'renderer');
 
-assertContains(agentsMd, '当前为 `1.0.5`', 'AGENTS.md');
+assertContains(agentsMd, '当前为 `1.0.6`', 'AGENTS.md');
 assertContains(agentsMd, '当前已配置 `npm test`', 'AGENTS.md');
 
 console.log('v1.0.4 feature checks passed');

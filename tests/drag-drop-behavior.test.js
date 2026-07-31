@@ -15,8 +15,19 @@ function assertContains(source, text, label) {
     );
 }
 
-assert.strictEqual(packageJson.version, '1.0.5', 'package version should be bumped for the new release');
-assert.strictEqual(packageJson.scripts.test, 'node tests/v1.0.5-auto-update.test.js && node tests/mesh-path-resolution.test.js && node tests/v1.0.5-uv-controls.test.js && node tests/v1.0.5-max-navigation.test.js && node tests/v1.0.5-discoverability.test.js && node tests/drag-drop-behavior.test.js && node tests/v1.0.4-features.test.js && node tests/electron-smoke.test.js', 'npm test should run the regression suites');
+assert.strictEqual(packageJson.version, '1.0.6', 'package version should be bumped for the new release');
+[
+    'tests/v1.0.5-auto-update.test.js',
+    'tests/mesh-path-resolution.test.js',
+    'tests/v1.0.5-uv-controls.test.js',
+    'tests/v1.0.6-texture-rotation.test.js',
+    'tests/v1.0.6-default-app.test.js',
+    'tests/v1.0.5-max-navigation.test.js',
+    'tests/v1.0.5-discoverability.test.js',
+    'tests/drag-drop-behavior.test.js',
+    'tests/v1.0.4-features.test.js',
+    'tests/electron-smoke.test.js'
+].forEach(testFile => assertContains(packageJson.scripts.test, testFile, 'npm test'));
 assert(packageJson.build.files.includes('mesh-path.js'), 'mesh path resolver should be included in packaged builds');
 
 assertContains(mainJs, "ipcMain.handle('get-file-info'", 'main process');
@@ -45,6 +56,9 @@ assert.strictEqual(
 );
 assertContains(indexHtml, 'let temporaryDroppedFbxItem = null;', 'renderer');
 assertContains(indexHtml, 'function isFbxFile(file)', 'renderer');
+assertContains(indexHtml, 'function isFileDragEvent(event)', 'renderer file drag filtering');
+assertContains(indexHtml, "includes('Files')", 'renderer file-only drag visuals');
+assertContains(indexHtml, "input.addEventListener('dragstart', (e) => e.preventDefault());", 'numeric input text drag prevention');
 assertContains(indexHtml, 'async function loadDroppedFbx(file)', 'renderer');
 assertContains(indexHtml, 'function shouldAutoGenerateThumbnails(totalCount)', 'renderer');
 assertContains(indexHtml, 'function getThumbnailBatchLimit(totalCount)', 'renderer');
