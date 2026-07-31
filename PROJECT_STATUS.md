@@ -1,15 +1,15 @@
 ## Current Snapshot
 
 - Last Updated: 2026-07-31
-- Branch: `release/v1.0.6`
-- Worktree: Clean after the v1.0.6 release-candidate and ledger commits; `dist/` remains ignored.
+- Branch: `master`; release branch `release/v1.0.6` is retained at the published tag.
+- Worktree: Clean after publishing v1.0.6; `dist/` remains ignored.
 - Superpowers Phase: Not active for this release.
 - Superpowers Plan: None; existing plans describe earlier releases and features.
 - Goal: Prepare v1.0.6 with Windows FBX default-app registration, configurable current/new-window external opens, independent texture rotation controls, and the accumulated UI fixes.
-- Phase: Local v1.0.6 release candidate built; awaiting final installed-app verification and Git/GitHub release actions.
+- Phase: v1.0.6 is published on GitHub; post-release installed-app verification remains.
 - Result: The installer registers as a per-user FBX open candidate without changing `UserChoice`. Explorer opens default to a temporary item in the current window, with an optional isolated new-window mode. Texture angle and continuous rotation speed are independent, and replacement textures preserve preview parameters.
 - Dependencies: Electron 43.1.0, electron-builder 26.15.7, electron-updater 6.8.9, and a `brace-expansion` 5.0.9 security override; `npm audit` reports zero vulnerabilities.
-- External verification: The user accepted the current-window behavior after iterative testing. The final window-restore black-frame mitigation and the installed 1.0.5-to-1.0.6 automatic update still require final package verification.
+- External verification: The user accepted the current-window behavior after iterative testing and authorized the v1.0.6 release. The final window-restore black-frame mitigation and the installed 1.0.5-to-1.0.6 automatic update still require final package verification.
 
 ## Verification Evidence
 
@@ -26,6 +26,11 @@
 - Installer blockmap SHA-256: `55B2A6E48BED96F69816F41DA79F27C81B14040B2BB2D8F5AFF628C08542F652`.
 - `git diff --check` passed; `git status` contains no `dist/`, cache, log, or runtime-data files.
 - Release-candidate commit: `13acc2956906c002557d8483c770b3f352e25163` (`release: prepare v1.0.6`).
+- Release ledger commit and tag target: `10c1787` (`docs: record v1.0.6 release candidate`).
+- Tag: `1.0.6`, annotated and published from commit `10c1787`.
+- GitHub Release: `https://github.com/Cherofre/fbx-quick-viewer/releases/tag/1.0.6` (published, not draft or prerelease).
+- GitHub latest-release API returns `1.0.6`.
+- All four remote assets are uploaded and their file sizes and SHA-256 digests match the local release artifacts.
 
 ### Published v1.0.5 baseline
 

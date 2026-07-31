@@ -13,7 +13,7 @@
 - [x] 便携版不注册 FBX 文件关联。
 - [ ] 用最终安装包手动验证当前窗口和新窗口两种外部打开方式。
 - [ ] 用最终安装包手动验证窗口恢复时的黑帧改善。
-- [ ] 接受当前产物未进行商业代码签名，可能出现未知发布者或 SmartScreen 提示。
+- [x] 已知并接受当前产物未进行商业代码签名，可能出现未知发布者或 SmartScreen 提示。
 
 ## 最终产物
 
@@ -30,21 +30,21 @@
 
 - [x] 检查 `git diff --check`、`git status` 和最终差异，确认没有缓存、日志、`dist` 或 `FBX_Data` 被纳入提交。
 - [x] 将发布候选提交到 `release/v1.0.6`：`13acc29`。
-- [ ] 将 `release/v1.0.6` 合并到稳定分支 `master`。
-- [ ] 在合并后的发布提交创建 tag `1.0.6`。
-- [ ] 推送 `master`、release 分支和 tag。
+- [x] 将 `release/v1.0.6` 快进合并到稳定分支 `master`。
+- [x] 在发布记录提交 `10c1787` 创建 annotated tag `1.0.6`。
+- [x] 推送 `master`、release 分支和 tag。
 
 ## GitHub Release
 
-- [ ] 创建 Release，tag 为 `1.0.6`，标题为 `v1.0.6`。
-- [ ] 正文使用 `RELEASE_NOTES_v1.0.6_CN.md`。
-- [ ] 上传安装版、便携版、`latest.yml` 和安装版 blockmap。
-- [ ] 核对四个附件的文件大小和 SHA-256。
+- [x] 创建 Release，tag 为 `1.0.6`，标题为 `v1.0.6`：`https://github.com/Cherofre/fbx-quick-viewer/releases/tag/1.0.6`。
+- [x] 正文使用 `RELEASE_NOTES_v1.0.6_CN.md`。
+- [x] 上传安装版、便携版、`latest.yml` 和安装版 blockmap。
+- [x] 核对四个附件的文件大小和 SHA-256，均与本地产物一致。
 
 ## 发布后验证
 
-- [ ] GitHub latest-release API 返回 `1.0.6`。
+- [x] GitHub latest-release API 返回 `1.0.6`。
 - [ ] 已安装的 1.0.5 在后台发现并下载 1.0.6，下载进度不阻塞当前操作。
 - [ ] 1.0.5 重启安装后覆盖原目录、保留原数据并启动为 1.0.6。
-- [ ] 远程附件摘要与本地 SHA-256 逐项一致。
-- [ ] 将最终提交、tag、Release URL 和远程摘要记录到 `PROJECT_STATUS.md`。
+- [x] 远程附件摘要与本地 SHA-256 逐项一致。
+- [x] 将发布提交、tag、Release URL 和远程摘要记录到 `PROJECT_STATUS.md`。
